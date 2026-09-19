@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Risk check</title>
+<style>
+:root{
+  --ink:#14213D; --paper:#F5F6F8; --card:#FFFFFF; --line:#DDE1E7; --muted:#5B6472;
+  --accent:#1D6FA5; --accent-ink:#0C447C; --danger:#A32D2D; --danger-bg:#FCEBEB;
+  --b1:#1E5631; --b2:#8BC34A; --b3:#F5C518; --b4:#F0932B; --b5:#D64541;
+  --radius:12px;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#E7E9EE; --paper:#0F1420; --card:#161C2B; --line:#2A3245; --muted:#9AA3B5;
+    --accent:#6FAEDD; --accent-ink:#B5D4F4; --danger:#F09595; --danger-bg:#3A1616;
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#E7E9EE; --paper:#0F1420; --card:#161C2B; --line:#2A3245; --muted:#9AA3B5;
+  --accent:#6FAEDD; --accent-ink:#B5D4F4; --danger:#F09595; --danger-bg:#3A1616;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.5;}
+.wrap{max-width:460px;margin:0 auto;padding:24px 20px 60px;min-height:100%;}
+h1{font-size:20px;font-weight:600;margin:0 0 4px;}
+p.lead{color:var(--muted);font-size:14px;margin:0 0 24px;}
+.dots{display:flex;gap:6px;margin-bottom:28px;}
+.dot{height:4px;flex:1;border-radius:2px;background:var(--line);}
+.dot.on{background:var(--accent);}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px 20px;}
+.field{margin-bottom:18px;}
+label.q{display:block;font-size:14px;font-weight:600;margin-bottom:8px;}
+input[type=number],select{
+  width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:var(--radius);
+  background:var(--paper);color:var(--ink);font-size:15px;
+}
+.choice-row{display:flex;gap:8px;}
+.choice{
+  flex:1;text-align:center;padding:11px 10px;border:1px solid var(--line);border-radius:var(--radius);
+  cursor:pointer;font-size:14px;user-select:none;background:var(--paper);color:var(--ink);
+}
+.choice.sel{border-color:var(--accent);background:var(--accent);color:#fff;font-weight:600;}
+.nav{display:flex;gap:10px;margin-top:24px;}
+button{
+  font-family:inherit;font-size:15px;font-weight:600;padding:12px 18px;border-radius:var(--radius);
+  border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;flex:1;
+}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+button:active{transform:scale(0.98);}
+button:disabled{opacity:0.5;cursor:not-allowed;}
+.locbox{display:flex;align-items:center;gap:10px;padding:14px;border:1px dashed var(--line);border-radius:var(--radius);font-size:13px;color:var(--muted);}
+.err{color:var(--danger);font-size:13px;margin-top:6px;display:none;}
+/* result screen */
+.risklabel{font-size:13px;color:var(--muted);margin:0 0 4px;}
+.riskval{font-size:26px;font-weight:600;margin:0 0 18px;}
+.gradient{display:flex;gap:4px;margin-bottom:6px;}
+.gradient div{flex:1;height:16px;border-radius:4px;}
+.gscale{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:22px;}
+.factors{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+.chip{font-size:12px;padding:5px 11px;border-radius:20px;}
+.chip.hi{background:var(--danger-bg);color:var(--danger);}
+.chip.lo{background:var(--paper);color:var(--muted);border:1px solid var(--line);}
+.disclaimer{font-size:12px;color:var(--muted);margin-top:20px;padding-top:16px;border-top:1px solid var(--line);}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+
+<script>
+// ---- Configuration ----
+// Point this at your deployed AQI proxy (see aqi-proxy-worker.js).
+// Example once deployed: "https://your-worker-name.your-subdomain.workers.dev"
+const CONFIG = {
+  AQI_PROXY_URL: "https://dash.cloudflare.com/oauth2/auth?response_type=code&client_id=54d11594-84e4-41aa-b438-e81b8fa78ee7&redirect_uri=http%3A%2F%2Flocalhost%3A8976%2Foauth%2Fcallback&scope=account%3Aread%20user%3Aread%20workers%3Awrite%20workers_kv%3Awrite%20workers_routes%3Awrite%20workers_scripts%3Awrite%20workers_tail%3Aread%20d1%3Awrite%20pages%3Awrite%20zone%3Aread%20ssl_certs%3Awrite%20ai%3Awrite%20ai-search%3Awrite%20ai-search%3Arun%20agent-memory%3Awrite%20queues%3Awrite%20pipelines%3Awrite%20secrets_store%3Awrite%20artifacts%3Awrite%20flagship%3Awrite%20containers%3Awrite%20cloudchamber%3Awrite%20connectivity%3Aadmin%20email_routing%3Awrite%20email_sending%3Awrite%20browser%3Awrite%20challenge-widgets.write%20offline_access&state=EJFLlCsr22B0-EPsJplF4AtQ3wSJsKRB&code_challenge=ySBDXvlf6RoYOqXbHnNCtBCISLq858Nq69QfnNbHLHU&code_challenge_method=S256"
+};
+
+const state = {
+  age:null, sex:null, lung:false, heart:false, smoke:null, famSmoke:null, famStroke:null,
+  step:0, aqi:null, city:null
+};
+
+const STEPS = ["about","conditions","lifestyle","location","result"];
+
+function render(){
+  const el = document.getElementById("app");
+  el.innerHTML = "";
+  const dots = document.createElement("div");
+  dots.className = "dots";
+  STEPS.slice(0,4).forEach((s,i)=>{
+    const d = document.createElement("div");
+    d.className = "dot" + (i<=STEPS.indexOf(state.step)&&state.step!=="result" && i<= currentIdx() ? " on":"");
+    dots.appendChild(d);
+  });
+  if(state.step!=="result") el.appendChild(dots);
+  el.appendChild(renderStep());
+}
+
+function currentIdx(){ return STEPS.indexOf(state.step); }
+
+function goto(step){ state.step = step; render(); }
+
+function renderStep(){
+  if(state.step===0||state.step==="about") return stepAbout();
+  if(state.step==="conditions") return stepConditions();
+  if(state.step==="lifestyle") return stepLifestyle();
+  if(state.step==="location") return stepLocation();
+  if(state.step==="result") return stepResult();
+  return stepAbout();
+}
+
+function frame(title, lead, bodyEl, onBack, onNext, nextLabel, nextDisabled){
+  const wrap = document.createElement("div");
+  const h = document.createElement("h1"); h.textContent = title;
+  const p = document.createElement("p"); p.className="lead"; p.textContent = lead;
+  const card = document.createElement("div"); card.className="card"; card.appendChild(bodyEl);
+  wrap.append(h,p,card);
+  const nav = document.createElement("div"); nav.className="nav";
+  if(onBack){ const b=document.createElement("button"); b.textContent="Back"; b.onclick=onBack; nav.appendChild(b); }
+  const n=document.createElement("button"); n.className="primary"; n.textContent=nextLabel||"Continue";
+  n.disabled = !!nextDisabled; n.onclick=onNext; nav.appendChild(n);
+  wrap.appendChild(nav);
+  return wrap;
+}
+
+function choiceRow(options, selected, onPick){
+  const row = document.createElement("div"); row.className="choice-row";
+  options.forEach(opt=>{
+    const c = document.createElement("div");
+    c.className = "choice" + (selected===opt.val ? " sel":"");
+    c.textContent = opt.label;
+    c.onclick = ()=>onPick(opt.val);
+    row.appendChild(c);
+  });
+  return row;
+}
+
+// --- Step: About ---
+function stepAbout(){
+  const body = document.createElement("div");
+  const f1 = document.createElement("div"); f1.className="field";
+  const l1 = document.createElement("label"); l1.className="q"; l1.textContent="Age";
+  const inp = document.createElement("input"); inp.type="number"; inp.min=1; inp.max=120;
+  inp.value = state.age || "";
+  inp.oninput = ()=>{ state.age = parseInt(inp.value)||null; render2(); };
+  f1.append(l1,inp); body.appendChild(f1);
+
+  const f2 = document.createElement("div"); f2.className="field";
+  const l2 = document.createElement("label"); l2.className="q"; l2.textContent="Sex";
+  f2.appendChild(l2);
+  f2.appendChild(choiceRow(
+    [{val:"f",label:"Female"},{val:"m",label:"Male"}],
+    state.sex, (v)=>{ state.sex=v; render(); }
+  ));
+  body.appendChild(f2);
+
+  return frame("About you","A couple of basics to start.", body,
+    null, ()=>goto("conditions"), "Continue", !(state.age && state.sex));
+}
+function render2(){ /* keep number input focus stable, skip full rerender on keystroke */ }
+
+// --- Step: Conditions ---
+function stepConditions(){
+  const body = document.createElement("div");
+  const f1 = document.createElement("div"); f1.className="field";
+  const l1 = document.createElement("label"); l1.className="q"; l1.textContent="Do you have a diagnosed condition affecting either of these organs?";
+  f1.appendChild(l1);
+  const row = document.createElement("div"); row.className="choice-row";
+  [["lung","Lung"],["heart","Heart"]].forEach(([key,label])=>{
+    const c = document.createElement("div");
+    c.className = "choice" + (state[key] ? " sel":"");
+    c.textContent = label;
+    c.onclick = ()=>{ state[key] = !state[key]; render(); };
+    row.appendChild(c);
+  });
+  f1.appendChild(row);
+  body.appendChild(f1);
+  return frame("Health conditions","Select any that apply. This can be none.", body,
+    ()=>goto("about"), ()=>goto("lifestyle"), "Continue", false);
+}
+
+// --- Step: Lifestyle ---
+function stepLifestyle(){
+  const body = document.createElement("div");
+  const rows = [
+    ["smoke","Do you smoke?"],
+    ["famSmoke","Does your family have a background of smoking?"],
+    ["famStroke","Does your family have a background of stroke?"]
+  ];
+  rows.forEach(([key,q])=>{
+    const f = document.createElement("div"); f.className="field";
+    const l = document.createElement("label"); l.className="q"; l.textContent=q;
+    f.appendChild(l);
+    f.appendChild(choiceRow([{val:true,label:"Yes"},{val:false,label:"No"}], state[key],
+      (v)=>{ state[key]=v; render(); }));
+    body.appendChild(f);
+  });
+  const allAnswered = state.smoke!==null && state.famSmoke!==null && state.famStroke!==null;
+  return frame("Smoking & family history","Your own habits and your family's.", body,
+    ()=>goto("conditions"), ()=>goto("location"), "Continue", !allAnswered);
+}
+
+// --- Step: Location ---
+function stepLocation(){
+  const body = document.createElement("div");
+  const box = document.createElement("div"); box.className="locbox";
+  box.textContent = state.aqi===null
+    ? "We use your location to check local air quality — a known factor in cardiovascular risk."
+    : `${state.city} · air quality index ${state.aqi}`;
+  body.appendChild(box);
+
+  const errEl = document.createElement("div"); errEl.className="err"; errEl.id="locerr";
+  errEl.textContent = "Couldn't get your location. Check permissions and try again.";
+  body.appendChild(errEl);
+
+  const btn = document.createElement("button"); btn.style.marginTop="14px"; btn.style.width="100%";
+  btn.className = state.aqi===null ? "primary" : "";
+  btn.disabled = !!state.locLoading;
+  btn.textContent = state.locLoading ? "Checking air quality…" : (state.aqi===null ? "Use my location" : "Location found");
+  btn.onclick = fetchLocationAndAQI;
+  body.appendChild(btn);
+
+  return frame("Local air quality","Last step before your result.", body,
+    ()=>goto("lifestyle"), ()=>goto("result"), "See my result", state.aqi===null);
+}
+
+async function fetchLocationAndAQI(){
+  const errEl = document.getElementById("locerr");
+  if(errEl) errEl.style.display = "none";
+  if(!navigator.geolocation){
+    if(errEl){ errEl.textContent = "This browser doesn't support location."; errEl.style.display = "block"; }
+    return;
+  }
+  state.locLoading = true; render();
+
+  navigator.geolocation.getCurrentPosition(
+    async (pos)=>{
+      const {latitude, longitude} = pos.coords;
+      try{
+        const url = `${CONFIG.AQI_PROXY_URL}/?lat=${latitude}&lon=${longitude}`;
+        const res = await fetch(url);
+        if(!res.ok) throw new Error("proxy error " + res.status);
+        const data = await res.json();
+        if(typeof data.aqi !== "number") throw new Error("bad response shape");
+        state.aqi = data.aqi;
+        state.city = data.city || `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`;
+      }catch(e){
+        if(errEl){
+          errEl.textContent = "Got your location, but couldn't reach the air quality service. Check that AQI_PROXY_URL is deployed and reachable.";
+          errEl.style.display = "block";
+        }
+      }
+      state.locLoading = false; render();
+    },
+    ()=>{
+      state.locLoading = false;
+      if(errEl){ errEl.textContent = "Couldn't get your location. Check permissions and try again."; errEl.style.display = "block"; }
+      render();
+    },
+    {timeout:8000}
+  );
+}
+
+// --- Risk model (literature-derived log-odds weights, see conversation for sources) ---
+function computeRisk(){
+  const w = { intercept:-3.2, agePerDecade:0.69, lung:0.18, heart:1.61,
+              smoke:0.55, famSmoke:0.30, famStroke:0.35, aqiPer10:0.12 };
+  let logit = w.intercept;
+  const decadesOver50 = Math.max(0, (state.age-50)/10);
+  logit += decadesOver50 * w.agePerDecade;
+  if(state.lung) logit += w.lung;
+  if(state.heart) logit += w.heart;
+  if(state.smoke) logit += w.smoke;
+  if(state.famSmoke) logit += w.famSmoke;
+  if(state.famStroke) logit += w.famStroke;
+  logit += (state.aqi/10) * w.aqiPer10;
+
+  const p = 1/(1+Math.exp(-logit));
+  let level = 1;
+  if(p>=0.50) level=5; else if(p>=0.35) level=4; else if(p>=0.20) level=3;
+  else if(p>=0.10) level=2; else level=1;
+  return {p, level};
+}
+
+// --- Step: Result ---
+function stepResult(){
+  const {p, level} = computeRisk();
+  const body = document.createElement("div");
+
+  const rl = document.createElement("p"); rl.className="risklabel"; rl.textContent="Your risk assessment";
+  const rv = document.createElement("p"); rv.className="riskval"; rv.textContent=`Level ${level} of 5`;
+  body.append(rl, rv);
+
+  const colors = ["#1E5631","#8BC34A","#F5C518","#F0932B","#D64541"];
+  const grad = document.createElement("div"); grad.className="gradient";
+  colors.forEach((c,i)=>{
+    const d = document.createElement("div"); d.style.background=c;
+    if(i+1===level){ d.style.outline="2px solid var(--ink)"; d.style.outlineOffset="2px"; }
+    grad.appendChild(d);
+  });
+  body.appendChild(grad);
+  const scale = document.createElement("div"); scale.className="gscale";
+  scale.innerHTML = "<span>Low</span><span>High</span>";
+  body.appendChild(scale);
+
+  const factorsLabel = document.createElement("p");
+  factorsLabel.style.cssText="font-size:13px;font-weight:600;color:var(--muted);margin:0 0 8px;";
+  factorsLabel.textContent="Contributing factors";
+  body.appendChild(factorsLabel);
+
+  const chips = document.createElement("div"); chips.className="factors";
+  const add = (label, hi)=>{ const c=document.createElement("span"); c.className="chip "+(hi?"hi":"lo"); c.textContent=label; chips.appendChild(c); };
+  if(state.heart) add("Heart disease", true);
+  if(state.lung) add("Lung disease", true);
+  if(state.smoke) add("Smoker", true);
+  if(state.aqi>100) add(`AQI ${state.aqi} (unhealthy)`, true); else add(`AQI ${state.aqi}`, false);
+  if(state.famStroke) add("Family stroke history", false);
+  if(state.famSmoke) add("Family smoking background", false);
+  if(state.age>=60) add("Age "+state.age, false);
+  body.appendChild(chips);
+
+  const disc = document.createElement("p"); disc.className="disclaimer";
+  disc.textContent = "This is an illustrative estimate built from published research, not a medical diagnosis. Talk to a doctor about your personal risk.";
+  body.appendChild(disc);
+
+  const wrap = document.createElement("div");
+  const h = document.createElement("h1"); h.textContent="Result";
+  const card = document.createElement("div"); card.className="card"; card.appendChild(body);
+  wrap.append(h, card);
+  const nav = document.createElement("div"); nav.className="nav";
+  const restart = document.createElement("button"); restart.textContent="Start over";
+  restart.onclick = ()=>{ Object.assign(state,{age:null,sex:null,lung:false,heart:false,smoke:null,famSmoke:null,famStroke:null,aqi:null,city:null,step:"about"}); render(); };
+  nav.appendChild(restart);
+  wrap.appendChild(nav);
+  return wrap;
+}
+
+state.step = "about";
+render();
+</script>
+</body>
+</html>
