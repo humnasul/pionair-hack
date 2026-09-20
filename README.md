@@ -1,5 +1,6 @@
 # Pionair: Personalized Air Quality Communication Tool
 ## What's Pionair?
+Pionair integrates live air pollution data into daily life through an app, care circle, and portable personalized device, making air quality information more accessible to vulnerable populations.
 ## Our Workflow
 1. The user enters (or shares GPS for) their location, plus a short set of health questions: age, hypertension, heart disease, smoking status, family history of stroke, family history of smoking.
 2. Pionair looks up the nearest real-time air quality sensor and current pollutant levels for that location.
