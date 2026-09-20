@@ -1,6 +1,18 @@
 # Pionair: Personalized Air Quality Communication Tool
 ## What's Pionair?
 Pionair integrates live air pollution data into daily life through an app, care circle, and portable personalized device, making air quality information more accessible to vulnerable populations.
+## File Directory:  
+- The main branch (outside any folders) includes...
+2 dataset CSVs used by `testing_datasets.py`. These datasets are provided from Kaggle.   
+`testing_datasets.py` creates weights utilizing the CSVs that are outputted as a file, `trained_model.json`. These weights are used as a basis of logistic regression in `app.py`.
+`app.py` is the interactive web app.
+- `initial trials` folder: includes all code that was created during the duration of the hackathon that was updated throughout the 25 hours. **The final results are in the main folder, initial trials is old code**
+- `hardware integration` folder: folder that contains a `.java` file that is a demonstration (**not tested during the duration of this hackathon**) for what we intend our product to be. **This is solely for showing the potential of our product + how easy and cheap it can be for SCALE.**
+## How to Run It:  
+1. Make sure you have the required packages installed: Python, Numpy, SKLearn, math, etc.
+2. Update the API keys for Purple Air and OpenWeather to your own.
+3. Enter the directory for the project and type `py .\testing_datasets.py\` into the terminal to generate an updated `trained_model.json`. Ensure the 2 dataset CSVs are in the directory
+4. Once the `json` is generated, type `py .\app.py` to open an interactive web page. The application is interactive and will work with your inputs! (note that AQI can be entered manually as the third option for AQI input, this was for testing purposes. Use the GPS feature.)
 ## Our Workflow
 1. The user enters (or shares GPS for) their location, plus a short set of health questions: age, hypertension, heart disease, smoking status, family history of stroke, family history of smoking.
 2. Pionair looks up the nearest real-time air quality sensor and current pollutant levels for that location.
@@ -8,11 +20,6 @@ Pionair integrates live air pollution data into daily life through an app, care 
 4. That probability is mapped to one of five color-coded levels (from "Clear Sailing" to "Rest & Recharge Indoors"), each with a plain-language headline and a concrete suggestion (stay inside, mask up, it's fine to go for a walk, etc.).
 5. An optional hardware companion: an air-quality sensor wired to an LED strip — mirrors the same red-to-green scale physically, so the signal doesn't require opening an app at all.   
 **Why software & hardware?** Increased reliability, accessibility to all populations, ease-of-use, convenient, and portable
-## How to Run It:  
-1. Make sure you have the required packages installed: Python, Numpy, SKLearn, math, etc.
-2. Update the API keys for Purple Air and OpenWeather to your own.
-3. Enter the directory for the project and type `py .\testing_datasets.py\` into the terminal to generate an updated `trained_model.json`. Ensure the 2 dataset CSVs are in the directory
-4. Once the `json` is generated, type `py .\app.py` to open an interactive web page. The application is interactive and will work with your inputs! (note that AQI can be entered manually as the third option for AQI input, this was for testing purposes. Use the GPS feature.)
 ## UI Mockup:  
 https://www.figma.com/proto/tnyfL6ssnZGn7j6YS148RZ/Traffic-Air?node-id=99-4827&t=zTU7NGGUzN9Bw7uW-1&scaling=scale-down&content-scaling=fixed&page-id=56%3A481&starting-point-node-id=87%3A392
 ## How it works
@@ -95,7 +102,8 @@ That probability is then bucketed into 5 levels (green to red) with the threshol
 Only the AQI value itself feeds the risk model; the individual pollutant breakdown is currently for display only.
 
 ## Hardware component
-
+We have code in the `hardware integration` folder that includes RGB LED light programming, allowing for a gradient that switches between red and green values. This code would be ideally integrated with a hardware component, in which the output from the ML model in `app.py` is used to change the RGB output on a device.
+**not implemented in the hackathon, but the code is present to demonstrate the intended approach and scale**
 ## References
 
 Coefficients that were pinned to external literature rather than fit from the training data:
@@ -103,8 +111,6 @@ Coefficients that were pinned to external literature rather than fit from the tr
 - Yu, S., Su, Z., Miao, J., et al. (2019). *Different Types of Family History of Stroke and Stroke Risk: Results Based on 655,552 Individuals.* — basis for the `fam_stroke` relative risk. (PMID: 30472175)
 - Lee et al. (2017) — cited in code as the basis for the household/secondhand-smoke relative risk used for `fam_smoke`.
 - AQI–stroke incidence relative risk (per 10-unit AQI increase) used for `aqi_scaled`.
-
-> The latter two citations are referenced by author/year only in the code comments. Before final submission, track down and add the full citations (journal, year, DOI) for `Lee et al. 2017` and the AQI relative-risk source so judges can verify them directly.
 
 Dataset sources:
 - fedesoriano. *Stroke Prediction Dataset.* Kaggle. ; https://www.kaggle.com/datasets/fedesoriano/stroke-prediction-dataset?
