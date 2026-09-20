@@ -7,7 +7,8 @@
 4. That probability is mapped to one of five color-coded levels (from "Clear Sailing" to "Rest & Recharge Indoors"), each with a plain-language headline and a concrete suggestion (stay inside, mask up, it's fine to go for a walk, etc.).
 5. An optional hardware companion: an air-quality sensor wired to an LED strip — mirrors the same red-to-green scale physically, so the signal doesn't require opening an app at all.   
 **Why software & hardware?** Increased reliability, accessibility to all populations, ease-of-use, convenient, and portable
-
+## UI Mockup:  
+https://www.figma.com/proto/tnyfL6ssnZGn7j6YS148RZ/Traffic-Air?node-id=99-4827&t=zTU7NGGUzN9Bw7uW-1&scaling=scale-down&content-scaling=fixed&page-id=56%3A481&starting-point-node-id=87%3A392
 ## How it works
 
 Pionair is two independent pieces that share one file:
