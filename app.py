@@ -813,7 +813,6 @@ HTML_PAGE = """<!DOCTYPE html>
     <div class="hero-stat-card" id="hero-card">
       <div class="hero-stat-title">Today's Safety Verdict</div>
       <div class="hero-stat-main" id="hero-label">--</div>
-      <div class="hero-stat-sub" id="hero-prob">--</div>
     </div>
 
     <!-- Details Grid: Values displayed, calculation unaffected -->
@@ -982,8 +981,6 @@ function displayResults(data) {
   heroCard.style.background = data.epa_category.bg;
   document.getElementById("hero-label").textContent = data.label;
   document.getElementById("hero-label").style.color = data.color;
-  document.getElementById("hero-prob").textContent = `${(data.probability * 100).toFixed(1)}% Acute Strain Index`;
-  document.getElementById("hero-prob").style.color = data.color;
 
   // Air Card
   const airCard = document.getElementById("air-card");
