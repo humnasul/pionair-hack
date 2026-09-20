@@ -4,9 +4,9 @@ Pionair integrates live air pollution data into daily life through an app, care 
 ## File Directory:  
 - The main branch (outside any folders) includes...   
 2 dataset CSVs used by `testing_datasets.py`. These datasets are provided from Kaggle.   
-`testing_datasets.py` creates weights utilizing the CSVs that are outputted as a file, `trained_model.json`. These weights are used as a basis of logistic regression in `app.py`.
-`app.py` is the interactive web app.
-- `initial trials` folder: includes all code that was created during the duration of the hackathon that was updated throughout the 25 hours. **The final results are in the main folder, initial trials is old code**
+`testing_datasets.py` creates weights utilizing the CSVs that are outputted as a file, `trained_model.json`. These weights are used as a basis of logistic regression in `app.py`.    
+`app.py` is the interactive web app.    
+- `initial trials` folder: includes all code that was created during the duration of the hackathon that was updated throughout the 25 hours. **The final results are in the main folder, initial trials is old code**    
 - `hardware integration` folder: folder that contains a `.java` file that is a demonstration (**not tested during the duration of this hackathon**) for what we intend our product to be. **This is solely for showing the potential of our product + how easy and cheap it can be for SCALE.**
 ## How to Run It:  
 1. Make sure you have the required packages installed: Python, Numpy, SKLearn, math, etc.
