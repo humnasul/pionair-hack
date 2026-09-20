@@ -23,8 +23,8 @@ except ImportError:
 # the env vars are API keys for PurpleAir and OpenWeatherMap, which are used to fetch air quality data
 
 MODEL_JSON_PATH = "trained_model.json"
-PURPLEAIR_API_READ_KEY = os.getenv("PURPLEAIR_API_KEY", "2A871D1F-B466-11F1-9E30-4201AC1DC129")
-OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY", "6e73f0faa5cbfbef42b0b8789b8c52a1")
+PURPLEAIR_API_READ_KEY = os.getenv("PURPLEAIR_API_KEY", "")
+OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY", "")
 # manually set default API keys for PurpleAir and OpenWeatherMap if not found in environment variables
 
 # if needed, print startup diagnostics to verify environment variables and working directory
