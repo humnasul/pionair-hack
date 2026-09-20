@@ -21,7 +21,7 @@ Pionair integrates live air pollution data into daily life through an app, care 
 5. An optional hardware companion: an air-quality sensor wired to an LED strip — mirrors the same red-to-green scale physically, so the signal doesn't require opening an app at all.   
 **Why software & hardware?** Increased reliability, accessibility to all populations, ease-of-use, convenient, and portable
 ## UI Mockup:  
-https://www.figma.com/proto/tnyfL6ssnZGn7j6YS148RZ/Traffic-Air?node-id=99-4827&t=zTU7NGGUzN9Bw7uW-1&scaling=scale-down&content-scaling=fixed&page-id=56%3A481&starting-point-node-id=87%3A392
+https://www.figma.com/proto/tnyfL6ssnZGn7j6YS148RZ/Traffic-Air?node-id=87-392&t=90HhvGNjr8lBRnZ7-1&scaling=scale-down&content-scaling=fixed&page-id=56%3A481&starting-point-node-id=87%3A392
 ## How it works
 
 Pionair is two independent pieces that share one file:
@@ -106,10 +106,15 @@ We have code in the `hardware integration` folder that includes RGB LED light pr
 **not implemented in the hackathon, but the code is present to demonstrate the intended approach and scale**
 ## References
 
-Coefficients that were pinned to external literature rather than fit from the training data:
+**Coefficients that were pinned to external literature** rather than fit **only** from the training data; **Clinical evaluation on literature was essential**:
 
 - Yu, S., Su, Z., Miao, J., et al. (2019). *Different Types of Family History of Stroke and Stroke Risk: Results Based on 655,552 Individuals.* — basis for the `fam_stroke` relative risk. (PMID: 30472175)
 - Lee et al. (2017) — cited in code as the basis for the household/secondhand-smoke relative risk used for `fam_smoke`.
+- Alonso et al. and the Framingham AF cohort papers on atrial fibrillation's 5-fold stroke risk
+- Peters et al., The relationship between smoking and stroke: a meta-analysis (Medicine, 2019)
+- Steyerberg, E.W., Eijkemans, M.J.C., Van Houwelingen, J.C., Lee, K.L., & Habbema, J.D.F. (2000). "Prognostic models based on literature and individual patient data in logistic regression analysis." Statistics in Medicine, 19(2), 141–160.
+- Newcombe, P.J., Reck, B.H., Sun, J., Platek, G.T., Verzilli, C., Kader, A.K., Kim, S.T., Hsu, F.C., Zhang, Z., Zheng, S.L., Mooser, V.E., Condreay, L.D., Spraggs, C.F., Whittaker, J.C., Rittmaster, R.S., & Xu, J. (2012). "A comparison of Bayesian and frequentist approaches to incorporating external information for the prediction of prostate cancer risk." Genetic Epidemiology, 36(1), 71–83.
+- Chatterjee, N., Chen, Y.-H., Maas, P., & Carroll, R.J. (2016). "Constrained Maximum Likelihood Estimation for Model Calibration Using Summary-Level Information From External Big Data Sources." Journal of the American Statistical Association, 111(513), 107–117.
 - AQI–stroke incidence relative risk (per 10-unit AQI increase) used for `aqi_scaled`.
 
 Dataset sources:
