@@ -1,10 +1,12 @@
 # Pionair: Personalized Air Quality Communication Tool
-## What It Does?  
+## What's Pionair?
+## Our Workflow
 1. The user enters (or shares GPS for) their location, plus a short set of health questions: age, hypertension, heart disease, smoking status, family history of stroke, family history of smoking.
 2. Pionair looks up the nearest real-time air quality sensor and current pollutant levels for that location.
-3. A logistic regression model — trained offline and shipped as a small JSON file — combines those inputs into a predicted probability of a near-term cerebrovascular event.
+3. A logistic regression model, trained offline and shipped as a small JSON file, combines those inputs into a predicted probability of a near-term cerebrovascular event.
 4. That probability is mapped to one of five color-coded levels (from "Clear Sailing" to "Rest & Recharge Indoors"), each with a plain-language headline and a concrete suggestion (stay inside, mask up, it's fine to go for a walk, etc.).
-5. An optional hardware companion — an air-quality sensor wired to an LED strip — mirrors the same red-to-green scale physically, so the signal doesn't require opening an app at all.
+5. An optional hardware companion: an air-quality sensor wired to an LED strip — mirrors the same red-to-green scale physically, so the signal doesn't require opening an app at all.   
+**Why software & hardware?** Increased reliability, accessibility to all populations, ease-of-use, convenient, and portable
 
 ## How it works
 
@@ -31,19 +33,17 @@ Pionair is two independent pieces that share one file:
     serves a risk score in the browser)
 ```
 ## Datasets
-
+**The model learns from existing published population-level evidence, not from the user’s personal health data**
 ### 1. Stroke Prediction Dataset (`healthcare-dataset-stroke-data.csv`)
 
 - **5,110 rows × 12 columns**: `id`, `gender`, `age`, `hypertension`, `heart_disease`, `ever_married`, `work_type`, `Residence_type`, `avg_glucose_level`, `bmi`, `smoking_status`, `stroke`
-- Real (though source-anonymized) patient records, originally published on Kaggle by fedesoriano.
-- Target class is heavily imbalanced: only ~4.9% of rows are positive stroke cases, which is why the model below is calibrated against literature rather than trained on raw class frequency alone.
-- `bmi` has ~201 missing values; `smoking_status` includes an explicit "Unknown" category.
+- Patient records, originally published on Kaggle by fedesoriano.
 - Pionair filters this to adults (age ≥ 18) before using it for training.
 
 ### 2. Air Quality and Health Impact Dataset (`air_quality_health_impact_data.csv`)
 
 - **5,811 rows × 15 columns**: `RecordID`, `AQI`, `PM10`, `PM2_5`, `NO2`, `SO2`, `O3`, `Temperature`, `Humidity`, `WindSpeed`, `RespiratoryCases`, `CardiovascularCases`, `HospitalAdmissions`, `HealthImpactScore`, `HealthImpactClass`
-- Synthetic data generated to plausibly mimic relationships between pollution and health outcomes, originally published on Kaggle by Rabie El Kharoua.
+- Originally published on Kaggle by Rabie El Kharoua.
 - Used here only as a source of realistic AQI values (`AQI` column) — sampled with replacement to size-match the stroke cohort. Everything else in the file (respiratory/cardiovascular case counts, the health impact score/class) is not used, since it's synthetic and not causally tied to the real stroke cohort.
 
 ## The model
@@ -75,7 +75,7 @@ The result — an intercept and 7 coefficients — is written to `trained_model.
 probability = sigmoid(intercept + Σ (coefficient_i × feature_i))
 ```
 
-That probability is then bucketed into 5 levels (green → red) with the thresholds defined in `app.py`.
+That probability is then bucketed into 5 levels (green to red) with the thresholds defined in `app.py`.
 
 ## APIs used
 
@@ -100,6 +100,5 @@ Coefficients that were pinned to external literature rather than fit from the tr
 > The latter two citations are referenced by author/year only in the code comments. Before final submission, track down and add the full citations (journal, year, DOI) for `Lee et al. 2017` and the AQI relative-risk source so judges can verify them directly.
 
 Dataset sources:
-
-- fedesoriano. *Stroke Prediction Dataset.* Kaggle.
-- Rabie El Kharoua. *Air Quality and Health Impact Dataset.* Kaggle.
+- fedesoriano. *Stroke Prediction Dataset.* Kaggle. ; https://www.kaggle.com/datasets/fedesoriano/stroke-prediction-dataset?
+- Rabie El Kharoua. *Air Quality and Health Impact Dataset.* Kaggle. ; https://www.kaggle.com/datasets/tfisthis/global-air-quality-and-respiratory-health-outcomes
