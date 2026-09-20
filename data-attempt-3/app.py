@@ -2,13 +2,42 @@ import http.server
 import json
 import math
 import os
+import traceback
 import urllib.parse
 import urllib.request
 import webbrowser
 
+try:
+    from dotenv import load_dotenv
+    # override=True: without this, python-dotenv will NOT overwrite a
+    # variable that already exists in the environment - even if it's an
+    # empty string. If an earlier "export PURPLEAIR_API_KEY=" left a blank
+    # value sitting in your shell/profile, that blank silently wins over
+    # whatever is in .env unless we force the override here.
+    _dotenv_loaded = load_dotenv(override=True)
+except ImportError:
+    _dotenv_loaded = False  # python-dotenv not installed - run: pip install python-dotenv
+
 MODEL_JSON_PATH = "trained_model.json"
 PURPLEAIR_API_READ_KEY = os.getenv("PURPLEAIR_API_KEY", "2A871D1F-B466-11F1-9E30-4201AC1DC129")
 OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY", "6e73f0faa5cbfbef42b0b8789b8c52a1")
+
+
+def _print_startup_diagnostics():
+    print("-" * 60)
+    print("STARTUP DIAGNOSTICS")
+    print(f"  Working directory:      {os.getcwd()}")
+    print(f"  .env file found here:   {os.path.exists('.env')}")
+    print(f"  python-dotenv loaded:   {_dotenv_loaded}")
+
+    def _status(name, value):
+        if not value:
+            return "NOT SET (empty)"
+        return f"SET ({value[:4]}...{value[-4:]}, {len(value)} chars)"
+
+    print(f"  PURPLEAIR_API_KEY:      {_status('PURPLEAIR_API_KEY', PURPLEAIR_API_READ_KEY)}")
+    print(f"  OPENWEATHER_API_KEY:    {_status('OPENWEATHER_API_KEY', OPENWEATHER_API_KEY)}")
+    print("-" * 60)
 
 # ------------------------------------------------------------------------------
 # 1. MODEL COEFFICIENT LOADER
@@ -31,6 +60,7 @@ else:
         "smoke": 0.20,
         "fam_stroke": 0.22,
         "fam_smoke": 0.13,
+        "aqi_scaled": 0.04,
         "pm2_5_scaled": 0.08,
         "o3_scaled": 0.13,
         "no2_scaled": 0.07,
@@ -183,9 +213,10 @@ def fetch_openweather_pollutants(lat: float, lon: float) -> dict:
 # ------------------------------------------------------------------------------
 def compute_detailed_risk(
     age: int, hypertension: bool, heart: bool, smoke: bool, fam_smoke: bool, fam_stroke: bool,
-    pm2_5: float, o3: float, no2: float
+    aqi: float, pm2_5: float, o3: float, no2: float
 ) -> tuple[float, int, str, str, str, str]:
     age_over_40 = max(0.0, (age - 40) / 10.0)
+    aqi_scaled = aqi / 10.0
     pm2_5_scaled = pm2_5 / 10.0
     o3_scaled = o3 / 10.0
     no2_scaled = no2 / 10.0
@@ -203,6 +234,7 @@ def compute_detailed_risk(
         + COEFS.get("smoke", 0.20) * s_val
         + COEFS.get("fam_stroke", 0.22) * f_stroke_val
         + COEFS.get("fam_smoke", 0.13) * f_smoke_val
+        + COEFS.get("aqi_scaled", 0.04) * aqi_scaled
         + COEFS.get("pm2_5_scaled", 0.08) * pm2_5_scaled
         + COEFS.get("o3_scaled", 0.13) * o3_scaled
         + COEFS.get("no2_scaled", 0.07) * no2_scaled
@@ -444,33 +476,52 @@ HTML_PAGE = """<!DOCTYPE html>
 
     .pair-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
       margin-bottom: 20px;
     }
-    @media (max-width: 500px) { .pair-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 560px) { .pair-grid { grid-template-columns: repeat(2, 1fr); } }
     .mini-card {
       background: #ffffff;
       border: 2px solid var(--border);
       border-radius: 18px;
-      padding: 16px;
+      padding: 14px 10px;
       text-align: center;
     }
     .mini-card-label {
-      font-size: 12px;
+      font-size: 10.5px;
       font-weight: 800;
       text-transform: uppercase;
+      letter-spacing: 0.02em;
       color: var(--muted);
       margin-bottom: 4px;
     }
     .mini-card-num {
-      font-size: 30px;
+      font-size: 24px;
       font-weight: 900;
+      line-height: 1.1;
+    }
+    .mini-card-unit {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      margin-top: 1px;
     }
     .mini-card-desc {
-      font-size: 13.5px;
+      font-size: 12px;
       font-weight: 700;
-      margin-top: 2px;
+      margin-top: 4px;
+    }
+    .estimated-note {
+      font-size: 12px;
+      font-weight: 700;
+      color: #b45309;
+      background: #fffbeb;
+      border: 1.5px solid #fde68a;
+      border-radius: 12px;
+      padding: 8px 12px;
+      margin-bottom: 16px;
+      display: none;
     }
 
     /* Visual Thermometer Bar */
@@ -623,16 +674,27 @@ HTML_PAGE = """<!DOCTYPE html>
     </div>
 
     <!-- Details Grid -->
+    <div class="estimated-note" id="estimated-note">⚠️ Live gas sensor data unavailable right now — PM2.5 is estimated from the AQI sensor, and O₃/NO₂ are not factored in for this result.</div>
     <div class="pair-grid">
       <div class="mini-card" id="air-card">
-        <div class="mini-card-label">Outdoor Air Score</div>
+        <div class="mini-card-label">AQI</div>
         <div class="mini-card-num" id="air-num">--</div>
         <div class="mini-card-desc" id="air-desc">--</div>
       </div>
-      <div class="mini-card">
-        <div class="mini-card-label">Air Particulates (PM2.5)</div>
-        <div class="mini-card-num" id="pm-num" style="color: #6366f1;">--</div>
-        <div class="mini-card-desc">Fine Smoke & Dust</div>
+      <div class="mini-card" id="pm25-card">
+        <div class="mini-card-label">PM2.5</div>
+        <div class="mini-card-num" id="pm25-num" style="color: #6366f1;">--</div>
+        <div class="mini-card-unit">µg/m³</div>
+      </div>
+      <div class="mini-card" id="o3-card">
+        <div class="mini-card-label">Ozone (O₃)</div>
+        <div class="mini-card-num" id="o3-num" style="color: #0d9488;">--</div>
+        <div class="mini-card-unit">µg/m³</div>
+      </div>
+      <div class="mini-card" id="no2-card">
+        <div class="mini-card-label">NO₂</div>
+        <div class="mini-card-num" id="no2-num" style="color: #0ea5e9;">--</div>
+        <div class="mini-card-unit">µg/m³</div>
       </div>
     </div>
 
@@ -703,8 +765,14 @@ function displayResults(data) {
   document.getElementById("air-num").style.color = data.epa_category.color;
   document.getElementById("air-desc").textContent = data.epa_category.category;
 
-  // PM2.5 Card
-  document.getElementById("pm-num").textContent = data.pollutant;
+  // Pollutant cards
+  const p = data.pollutants || {};
+  document.getElementById("pm25-num").textContent = p.pm2_5 != null ? p.pm2_5.toFixed(1) : "--";
+  document.getElementById("o3-num").textContent = p.o3 != null ? p.o3.toFixed(1) : "--";
+  document.getElementById("no2-num").textContent = p.no2 != null ? p.no2.toFixed(1) : "--";
+
+  const note = document.getElementById("estimated-note");
+  note.style.display = data.pollutants_estimated ? "block" : "none";
 
   // Thermometer Pin (clamped 4% to 96%)
   const pin = document.getElementById("meter-pin");
@@ -820,6 +888,7 @@ class AppHandler(http.server.BaseHTTPRequestHandler):
                     payload["smoke"],
                     payload["fam_smoke"],
                     payload["fam_stroke"],
+                    aqi,
                     pollutants["pm2_5"] or 0.0,
                     pollutants["o3"] or 0.0,
                     pollutants["no2"] or 0.0,
@@ -842,6 +911,10 @@ class AppHandler(http.server.BaseHTTPRequestHandler):
                 }
                 self.send_response(200)
             except Exception as exc:
+                print("\n" + "=" * 60)
+                print("FULL ERROR DETAILS (this is what actually happened):")
+                traceback.print_exc()
+                print("=" * 60 + "\n")
                 resp = {"error": str(exc)}
                 self.send_response(400)
 
@@ -854,6 +927,7 @@ class AppHandler(http.server.BaseHTTPRequestHandler):
 
 
 def main():
+    _print_startup_diagnostics()
     port = int(os.environ.get("PORT", 8000))
     server = http.server.HTTPServer(("0.0.0.0", port), AppHandler)
     url = f"http://127.0.0.1:{port}"
