@@ -126,7 +126,7 @@ def main():
 
     # Apply tempered shrinkage (0.35) to prevent over-compounding of stacked features
     # preventing the model from overestimating risk when multiple risk factors are present
-    SHRINKAGE = 0.50
+    SHRINKAGE = 0.53
     for feat in model_payload["coefficients"]:
         model_payload["coefficients"][feat] = round(model_payload["coefficients"][feat] * SHRINKAGE, 4)
 

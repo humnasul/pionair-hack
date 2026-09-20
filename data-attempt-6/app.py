@@ -68,11 +68,11 @@ else:
 # thresholds for risk levels based on predicted probability of stroke
 # derived from logistic regression model and literature-based risk ratios
 LEVEL_THRESHOLDS = [
-    (0.12, 5, "#ef4444", "Take Immediate Shelter", "🚨 Red Flag Alert", "Your body is under major strain from the air quality outside. Close all windows, turn on an air filter if you have one, and rest indoors. If you feel dizzy, short of breath, or notice sudden numbness, contact a doctor or dial 911 right away."),
-    (0.07, 4, "#f97316", "Stay Indoors or Mask Up", "⚠️ High Strain Zone", "Skip outdoor exercise or heavy chores today. Keep inside with clean air, drink extra water, and make sure your regular prescriptions or inhalers are within reach."),
+    (0.12, 5, "#ef4444", "Rest & Recharge Indoors", "🚨 High Environmental Caution", "Your body is working harder today due to outside air. Close windows, turn on indoor air cooling or filtering, and relax comfortably inside. If you feel sudden weakness, dizziness, or shortness of breath, please check in with a doctor or health professional right away."),
+    (0.07, 4, "#f97316", "Stay Indoors or Mask Up", "⚠️ Elevated Indoor Caution", "Skip heavier outdoor tasks or workouts today. Stay comfortable inside with clean air, drink fresh water, and keep your regular prescriptions nearby."),
     (0.04, 3, "#f59e0b", "Pace Yourself", "👀 Yellow Caution", "If you have heart or blood pressure concerns, take things slow outside. Avoid long walks along busy roads while the air is hazy or dusty."),
     (0.02, 2, "#10b981", "Looking Safe", "👍 Green Light", "Your body and the outdoor air are in good harmony today. You are free to run errands, play, and go on walks."),
-    (0.00, 1, "#06b6d4", "Prime Conditions", "🌟 Clear Sailing", "Air is crisp and your personal baseline is calm. Enjoy the outdoors, open up the windows, and stay active!"),
+    (0.00, 1, "#10b981", "Prime Conditions", "🌟 Clear Sailing", "Air is crisp and your personal baseline is calm. Enjoy the outdoors, open up the windows, and stay active!"),
 ]
 
 
@@ -107,11 +107,11 @@ def get_epa_aqi_category(aqi: float) -> dict:
     elif aqi <= 150:
         return {"category": "Smoky / Hazy", "color": "#f97316", "bg": "#fff7ed", "simple_desc": "Fine dust particles are elevated. Vulnerable groups should limit time outside."}
     elif aqi <= 200:
-        return {"category": "Unhealthy", "color": "#ef4444", "bg": "#fef2f2", "simple_desc": "Dirty air that can cause coughing or wheezing. Stay inside."}
+        return {"category": "Unhealthy", "color": "#ef4444", "bg": "#fef2f2", "simple_desc": "Dust and smoke particles are elevated today. Staying inside is recommended."}
     elif aqi <= 300:
         return {"category": "Very Unhealthy", "color": "#8b5cf6", "bg": "#f5f3ff", "simple_desc": "Heavy smoke or smog pollution. Seal windows and avoid all outdoor trips."}
     else:
-        return {"category": "Hazardous", "color": "#991b1b", "bg": "#fef2f2", "simple_desc": "Emergency smoke conditions. Run indoor filtration continuously."}
+        return {"category": "Hazardous", "color": "#991b1b", "bg": "#fef2f2", "simple_desc": "Very heavy smoke conditions. Run indoor filtration continuously."}
 
 # get user's location coordinates (latitude, longitude) and display name using OpenStreetMap's Nominatim API
 def geocode_address(query: str) -> tuple[float, float, str]:
@@ -251,7 +251,7 @@ def compute_detailed_risk(
         if prob >= threshold:
             return prob, level, color, label, headline, advisory
 
-    return prob, 1, "#06b6d4", "Prime Conditions", LEVEL_THRESHOLDS[-1][4], LEVEL_THRESHOLDS[-1][5]
+    return prob, 1, "#10b981", "Prime Conditions", LEVEL_THRESHOLDS[-1][4], LEVEL_THRESHOLDS[-1][5]
 
 
 # ------------------------------------------------------------------------------
@@ -395,6 +395,36 @@ HTML_PAGE = """<!DOCTYPE html>
       accent-color: var(--brand);
     }
 
+    .ac-choice-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .ac-choice-card {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 14px 18px;
+      border: 2px solid var(--border);
+      border-radius: 16px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      background: #f8fafc;
+      transition: all 0.2s ease;
+    }
+    .ac-choice-card:hover {
+      background: #ffffff;
+      border-color: #cbd5e1;
+    }
+    .ac-choice-card input {
+      width: 20px;
+      height: 20px;
+      accent-color: var(--brand);
+      cursor: pointer;
+    }
+
     .btn-submit {
       width: 100%;
       padding: 18px;
@@ -469,10 +499,10 @@ HTML_PAGE = """<!DOCTYPE html>
       opacity: 0.85;
     }
     .hero-stat-main {
-      font-size: 38px;
+      font-size: 34px;
       font-weight: 900;
-      letter-spacing: -0.03em;
-      line-height: 1.1;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
       margin-bottom: 8px;
     }
     .hero-stat-sub {
@@ -521,16 +551,16 @@ HTML_PAGE = """<!DOCTYPE html>
     .estimated-note {
       font-size: 12px;
       font-weight: 700;
-      color: #b45309;
-      background: #fffbeb;
-      border: 1.5px solid #fde68a;
+      color: #0369a1;
+      background: #f0f9ff;
+      border: 1.5px solid #bae6fd;
       border-radius: 12px;
       padding: 8px 12px;
       margin-bottom: 16px;
       display: none;
     }
 
-    /* Thermometer Bar */
+    /* Pure Green -> Lime -> Yellow -> Orange -> Red Gradient Track */
     .meter-box {
       background: #ffffff;
       border: 2px solid var(--border);
@@ -548,7 +578,7 @@ HTML_PAGE = """<!DOCTYPE html>
     .meter-track {
       height: 20px;
       border-radius: 10px;
-      background: linear-gradient(to right, #06b6d4 0%, #10b981 25%, #f59e0b 50%, #f97316 75%, #ef4444 100%);
+      background: linear-gradient(to right, #10b981 0%, #84cc16 25%, #eab308 50%, #f97316 75%, #ef4444 100%);
       position: relative;
     }
     .meter-pin {
@@ -560,7 +590,7 @@ HTML_PAGE = """<!DOCTYPE html>
       border: 4px solid var(--text);
       border-radius: 50%;
       transform: translateX(-50%);
-      box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
       transition: left 0.4s ease;
     }
     .meter-steps {
@@ -611,15 +641,15 @@ HTML_PAGE = """<!DOCTYPE html>
     }
     .explainer-p:last-child { margin-bottom: 0; }
 
-    /* Safety Notification Modal for Level 4 & 5 */
+    /* Friendly, Calming Modal (Strictly No Red) */
     .modal-overlay {
       position: fixed;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(15, 23, 42, 0.7);
-      backdrop-filter: blur(4px);
+      background: rgba(15, 23, 42, 0.45);
+      backdrop-filter: blur(5px);
       display: none;
       justify-content: center;
       align-items: center;
@@ -628,47 +658,69 @@ HTML_PAGE = """<!DOCTYPE html>
     }
     .modal-dialog {
       background: #ffffff;
-      padding: 30px 26px;
-      border-radius: 24px;
-      max-width: 440px;
+      padding: 32px 28px;
+      border-radius: 26px;
+      max-width: 460px;
       width: 90%;
       text-align: center;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35);
-      border: 2px solid #ef4444;
-      animation: popUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      box-shadow: 0 20px 45px -10px rgba(99, 102, 241, 0.2);
+      border: 2px solid #e0e7ff;
+      animation: popUp 0.28s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
     .modal-icon {
-      font-size: 48px;
+      font-size: 46px;
       margin-bottom: 12px;
       line-height: 1;
     }
     .modal-title {
-      font-size: 20px;
+      font-size: 21px;
       font-weight: 800;
       color: #0f172a;
       margin-bottom: 8px;
     }
     .modal-body {
-      font-size: 15px;
+      font-size: 15.5px;
       font-weight: 600;
       color: #475569;
       line-height: 1.55;
       margin-bottom: 22px;
     }
-    .modal-btn {
+    .duration-options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .duration-btn {
+      padding: 13px 10px;
+      background: #f8fafc;
+      border: 2px solid #e2e8f0;
+      border-radius: 14px;
+      font-size: 14px;
+      font-weight: 700;
+      color: #1e293b;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .duration-btn:hover {
+      background: #eef2ff;
+      border-color: #6366f1;
+      color: #4338ca;
+    }
+    .modal-primary-btn {
       width: 100%;
-      padding: 14px;
-      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      padding: 15px;
+      background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
       color: #ffffff;
       border: none;
-      border-radius: 14px;
+      border-radius: 16px;
       font-weight: 800;
       font-size: 16px;
       cursor: pointer;
-      box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4);
+      box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
       transition: transform 0.15s;
     }
-    .modal-btn:hover {
+    .modal-primary-btn:hover {
       transform: translateY(-1px);
     }
     @keyframes fadeIn {
@@ -676,7 +728,7 @@ HTML_PAGE = """<!DOCTYPE html>
       to { opacity: 1; }
     }
     @keyframes popUp {
-      from { opacity: 0; transform: scale(0.92); }
+      from { opacity: 0; transform: scale(0.94); }
       to { opacity: 1; transform: scale(1); }
     }
   </style>
@@ -719,7 +771,21 @@ HTML_PAGE = """<!DOCTYPE html>
   </div>
 
   <div class="form-group">
-    <label class="field-label">3. Where are you?</label>
+    <label class="field-label">3. Do you have air conditioning indoors?</label>
+    <div class="ac-choice-grid">
+      <label class="ac-choice-card">
+        <input type="radio" name="has_ac" value="yes" checked>
+        <span>❄️ Yes, I have A/C</span>
+      </label>
+      <label class="ac-choice-card">
+        <input type="radio" name="has_ac" value="no">
+        <span>🪟 No A/C</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label class="field-label">4. Where are you?</label>
     <div class="toggle-row">
       <label><input type="radio" name="loc_mode" value="address" checked onclick="toggleMode()"> Enter City or Zip</label>
       <label><input type="radio" name="loc_mode" value="device" onclick="toggleMode()"> Phone GPS</label>
@@ -751,7 +817,7 @@ HTML_PAGE = """<!DOCTYPE html>
     </div>
 
     <!-- Details Grid: Values displayed, calculation unaffected -->
-    <div class="estimated-note" id="estimated-note">⚠️ Live gas sensor data unavailable right now — PM2.5 is estimated from the AQI sensor.</div>
+    <div class="estimated-note" id="estimated-note">ℹ️ Live gas sensor data unavailable right now — PM2.5 is estimated from the AQI sensor.</div>
     <div class="pair-grid">
       <div class="mini-card" id="air-card">
         <div class="mini-card-label">AQI</div>
@@ -775,7 +841,7 @@ HTML_PAGE = """<!DOCTYPE html>
       </div>
     </div>
 
-    <!-- Thermometer Meter -->
+    <!-- Restored Classic Pure Green -> Lime -> Yellow -> Orange -> Red Thermometer Meter -->
     <div class="meter-box">
       <div class="meter-label-row">
         <span>Overall Safety Thermometer</span>
@@ -815,19 +881,23 @@ HTML_PAGE = """<!DOCTYPE html>
   </div>
 </div>
 
-<!-- Loved Ones Safety Notification Popup Modal -->
+<!-- Friendly Safety Notification Popup Modal (Gentle Violet/Blue, Strictly No Red) -->
 <div class="modal-overlay" id="safety-modal">
   <div class="modal-dialog">
-    <div class="modal-icon">📲</div>
-    <div class="modal-title">Safety Alert Triggered</div>
-    <div class="modal-body" id="safety-modal-body">
-      Loved ones have been notified for safety. High physiological and environmental strain detected.
+    <div class="modal-icon" id="modal-icon">💙</div>
+    <div class="modal-title" id="modal-title">Checking In On You</div>
+    <div class="modal-body" id="modal-body">
+      <!-- Injected dynamically based on AC and exposure time -->
     </div>
-    <button class="modal-btn" onclick="closeSafetyModal()">I Understand</button>
+    <div id="modal-action-area">
+      <!-- Buttons injected dynamically -->
+    </div>
   </div>
 </div>
 
 <script>
+let currentEvaluatedAQI = 50;
+
 function toggleMode() {
   const mode = document.querySelector('input[name="loc_mode"]:checked').value;
   document.getElementById('address-box').style.display = mode === 'address' ? 'block' : 'none';
@@ -836,6 +906,69 @@ function toggleMode() {
 
 function closeSafetyModal() {
   document.getElementById('safety-modal').style.display = 'none';
+}
+
+/* Research-supported threshold check:
+   - AQI > 200: Healthy limit for sensitive/high-strain is <= 30 mins (0.5 hrs).
+   - AQI 151-200: Limit is <= 60 mins (1 hr).
+   - AQI <= 150: Limit is <= 120 mins (2 hrs).
+*/
+function checkTimeOutside(minutes) {
+  let maxSafeMinutes = 60;
+  if (currentEvaluatedAQI > 200) {
+    maxSafeMinutes = 30;
+  } else if (currentEvaluatedAQI > 150) {
+    maxSafeMinutes = 60;
+  } else {
+    maxSafeMinutes = 120;
+  }
+
+  const titleEl = document.getElementById('modal-title');
+  const iconEl = document.getElementById('modal-icon');
+  const bodyEl = document.getElementById('modal-body');
+  const actionArea = document.getElementById('modal-action-area');
+
+  if (minutes > maxSafeMinutes) {
+    iconEl.textContent = '🕊️';
+    titleEl.textContent = 'Care Update Sent';
+    bodyEl.textContent = "You may have been exposed to unhealthy air today - We sent a message to your loved one to check-in on you.";
+  } else {
+    iconEl.textContent = '🏡';
+    titleEl.textContent = 'Safe & Sound Inside';
+    bodyEl.textContent = "The weather isn't ideal outside. We're glad you stayed inside today!";
+  }
+
+  actionArea.innerHTML = '<button class="modal-primary-btn" onclick="closeSafetyModal()">Got It, Thanks!</button>';
+}
+
+function handleHighRiskAlert(hasAC, aqi) {
+  currentEvaluatedAQI = aqi;
+  const modal = document.getElementById('safety-modal');
+  const iconEl = document.getElementById('modal-icon');
+  const titleEl = document.getElementById('modal-title');
+  const bodyEl = document.getElementById('modal-body');
+  const actionArea = document.getElementById('modal-action-area');
+
+  if (hasAC) {
+    iconEl.textContent = '🌤️';
+    titleEl.textContent = 'Quick Outdoor Check-In';
+    bodyEl.textContent = "How long did you spend outside?";
+    actionArea.innerHTML = `
+      <div class="duration-options">
+        <button class="duration-btn" onclick="checkTimeOutside(15)">Under 30 mins</button>
+        <button class="duration-btn" onclick="checkTimeOutside(45)">30 – 60 mins</button>
+        <button class="duration-btn" onclick="checkTimeOutside(90)">1 – 2 hours</button>
+        <button class="duration-btn" onclick="checkTimeOutside(150)">Over 2 hours</button>
+      </div>
+    `;
+  } else {
+    iconEl.textContent = '🕊️';
+    titleEl.textContent = 'Safety Check-In';
+    bodyEl.textContent = "Take it easy today, you may be at risk of exposure to unhealthy air today.";
+    actionArea.innerHTML = '<button class="modal-primary-btn" onclick="closeSafetyModal()">I Understand</button>';
+  }
+
+  modal.style.display = 'flex';
 }
 
 function displayResults(data) {
@@ -884,9 +1017,10 @@ function displayResults(data) {
   document.getElementById("advisory-title").style.color = data.color;
   document.getElementById("advisory-text").textContent = data.advisory;
 
-  // Trigger popup modal if resulting risk level is Level 4 or Level 5
+  // Trigger friendly modal if resulting risk level is Level 4 or Level 5
   if (data.level >= 4) {
-    document.getElementById("safety-modal").style.display = "flex";
+    const hasAC = document.querySelector('input[name="has_ac"]:checked').value === 'yes';
+    handleHighRiskAlert(hasAC, data.aqi);
   }
 }
 
@@ -904,7 +1038,8 @@ async function evaluateRisk() {
     heart: document.getElementById("heart").checked,
     smoke: document.getElementById("smoke").checked,
     fam_smoke: document.getElementById("fam_smoke").checked,
-    fam_stroke: document.getElementById("fam_stroke").checked
+    fam_stroke: document.getElementById("fam_stroke").checked,
+    has_ac: document.querySelector('input[name="has_ac"]:checked').value === 'yes'
   };
 
   try {
