@@ -1,0 +1,15 @@
+{
+    "intercept": -4.7,
+    "coefficients": {
+        "age_over_40": 0.273,
+        "heart": 0.0619,
+        "hypertension": 0.1941,
+        "smoke": 0.071,
+        "fam_stroke": 0.1178,
+        "fam_smoke": 0.0725,
+        "aqi_scaled": 0.015,
+        "pm2_5_scaled": 0.0428,
+        "o3_scaled": 0.0638,
+        "no2_scaled": 0.0365
+    }
+}
