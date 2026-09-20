@@ -9,7 +9,10 @@ Pionair integrates live air pollution data into daily life through an app, care 
 5. An optional hardware companion: an air-quality sensor wired to an LED strip — mirrors the same red-to-green scale physically, so the signal doesn't require opening an app at all.   
 **Why software & hardware?** Increased reliability, accessibility to all populations, ease-of-use, convenient, and portable
 ## How to Run It:  
-1. Make sure you have the required packages installed: Python, Numpy, SKLearn, math, 
+1. Make sure you have the required packages installed: Python, Numpy, SKLearn, math, etc.
+2. Update the API keys for Purple Air and OpenWeather to your own.
+3. Enter the directory for the project and type `py .\testing_datasets.py\` into the terminal to generate an updated `trained_model.json`. Ensure the 2 dataset CSVs are in the directory
+4. Once the `json` is generated, type `py .\app.py` to open an interactive web page. The application is interactive and will work with your inputs! (note that AQI can be entered manually as the third option for AQI input, this was for testing purposes. Use the GPS feature.)
 ## UI Mockup:  
 https://www.figma.com/proto/tnyfL6ssnZGn7j6YS148RZ/Traffic-Air?node-id=99-4827&t=zTU7NGGUzN9Bw7uW-1&scaling=scale-down&content-scaling=fixed&page-id=56%3A481&starting-point-node-id=87%3A392
 ## How it works
