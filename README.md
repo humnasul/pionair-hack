@@ -2,7 +2,7 @@
 ## What's Pionair?
 Pionair integrates live air pollution data into daily life through an app, care circle, and portable personalized device, making air quality information more accessible to vulnerable populations.
 ## File Directory:  
-- The main branch (outside any folders) includes...
+- The main branch (outside any folders) includes...   
 2 dataset CSVs used by `testing_datasets.py`. These datasets are provided from Kaggle.   
 `testing_datasets.py` creates weights utilizing the CSVs that are outputted as a file, `trained_model.json`. These weights are used as a basis of logistic regression in `app.py`.
 `app.py` is the interactive web app.
