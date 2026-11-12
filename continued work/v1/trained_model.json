@@ -1,0 +1,34 @@
+{
+    "intercept": -4.5,
+    "coefficients": {
+        "age_over_40": 0.4125,
+        "heart": 0.1044,
+        "hypertension": 0.2929,
+        "smoke": 0.1031,
+        "fam_stroke": 0.1783,
+        "fam_smoke": 0.1097,
+        "aqi_scaled": 0.0505
+    },
+    "metadata": {
+        "training_rows": 4254,
+        "shrinkage": 0.53,
+        "literature_overrides_before_shrinkage": {
+            "fam_stroke": 0.3365,
+            "fam_smoke": 0.207,
+            "aqi_scaled": 0.0953
+        },
+        "held_out_fitted_model": {
+            "roc_auc": 0.798,
+            "brier": 0.05
+        },
+        "held_out_shipped_model": {
+            "roc_auc": 0.666,
+            "brier": 0.0578
+        },
+        "held_out_shipped_model_patient_terms_only": {
+            "roc_auc": 0.799
+        },
+        "training_aqi_mean": 247.7,
+        "note": "Prototype weights: family history and AQI values are simulated/pinned to literature; intercept is hand-set; not clinically validated."
+    }
+}

@@ -3,16 +3,32 @@ Humna Sultan
 PURPOSE OF THE FILE:
 - utilize trained_model.json (if available) to compute a personalized stroke risk score based on user inputs and local air quality data
 - utilizes: logistic regression, PurpleAir API, OpenWeatherMap API, geocoding, HTML/CSS/JS frontend
+- NYC Open Data context: shows the user's neighborhood long-term PM2.5 average and a modeled health-burden figure
+  (display only, never used in the risk score), and falls back to the neighborhood average, clearly flagged, when
+  no live sensor is available in NYC. Built from nyc_baseline.json (see preprocess_nyc_data.py, nyc_context.py)
+- AQI-band guardrails keep each alert level inside the range allowed for today's EPA AQI band, and the care-circle
+  popup needs Level 4+ AND AQI 101+ (see AQI_LEVEL_RANGES and CARE_CIRCLE_MIN_AQI)
+- the air effect in the score is a published estimate (short-term PM2.5 and stroke admission or mortality, Shah et al.
+  2015, RR 1.011 per 10 ug/m3), not a fitted or hand-picked weight; EPA-listed sensitive groups (age 65+ or heart
+  disease) get one extra step of caution at AQI 101 and above
 '''
 import http.server
 import json
 import math
 import os
+import time
 import traceback
 import urllib.parse
 import urllib.request
 import webbrowser
 # imports for ml processing, web server, and API requests
+
+# NYC neighborhood context (display only). The app still runs if nyc_context.py is missing.
+try:
+    from nyc_context import nyc_context
+except ImportError:
+    def nyc_context(lat, lon):
+        return None
 
 try:
     from dotenv import load_dotenv
@@ -26,6 +42,7 @@ MODEL_JSON_PATH = "trained_model.json"
 PURPLEAIR_API_READ_KEY = os.getenv("PURPLEAIR_API_KEY", "")
 OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY", "")
 # manually set default API keys for PurpleAir and OpenWeatherMap if not found in environment variables
+MAX_SENSOR_AGE_SECONDS = 3600  # ignore PurpleAir sensors that have not reported in the last hour
 
 # if needed, print startup diagnostics to verify environment variables and working directory
 def _print_startup_diagnostics():
@@ -45,28 +62,50 @@ def _print_startup_diagnostics():
     print("-" * 60)
 
 # ------------------------------------------------------------------------------
-# 1. MODEL COEFFICIENT LOADER (NO2, PM2.5, and O3 excluded from weighting)
+# 1. MODEL COEFFICIENT LOADER (only PM2.5 feeds the air term; NO2 and O3 are display-only)
 # ------------------------------------------------------------------------------
+# Fallback values mirror the current trained_model.json, so the app behaves the same even if that file is missing
+DEFAULT_INTERCEPT = -4.50
+DEFAULT_COEFS = {
+    "age_over_40": 0.4125,
+    "heart": 0.1033,
+    "hypertension": 0.2944,
+    # Smoking is a three-level categorical (never / former / current). Former-smoker stroke
+    # risk returns to roughly the never-smoker baseline within ~5 years of quitting
+    # (Surgeon General reports; INTERSTROKE), so the two levels get very different weights.
+    # Each is anchored to literature and shrunk by 0.53 like the other pinned terms:
+    #   - current: ln(1.67) * 0.53 ~= 0.272 (INTERSTROKE OR ~1.67 for ischemic stroke)
+    #   - former:  ln(1.05) * 0.53 ~= 0.026 (near-baseline for long-quit smokers)
+    "smoke_current": 0.272,
+    "smoke_former": 0.026,
+    "fam_stroke": 0.1783,
+    "fam_smoke": 0.1097,
+}
+# Air term (published estimate, not fitted): Shah et al., BMJ 2015;350:h1295, short-term PM2.5 and stroke admission or
+# mortality, RR 1.011 per 10 ug/m3. Air at or below the reference level adds no risk.
+DEFAULT_AIR = {"pm25_log_rr_per_10ug": 0.01094, "reference_pm25": 5.0}
+INTERCEPT = DEFAULT_INTERCEPT
+COEFS = dict(DEFAULT_COEFS)
+AIR = dict(DEFAULT_AIR)
 if os.path.exists(MODEL_JSON_PATH): # if the trained_model.json file exists, load the model coefficients from it
     with open(MODEL_JSON_PATH, "r", encoding="utf-8") as f:
         _loaded = json.load(f)
-        INTERCEPT = _loaded.get("intercept", -4.50)
-        COEFS = _loaded.get("coefficients", {})
+    INTERCEPT = _loaded.get("intercept", DEFAULT_INTERCEPT)
+    COEFS.update({k: v for k, v in _loaded.get("coefficients", {}).items() if k in DEFAULT_COEFS})  # missing ones keep defaults
+    AIR.update(_loaded.get("air", {}))
+    if "aqi_scaled" in _loaded.get("coefficients", {}):
+        print("[NOTE] trained_model.json is from an older version with an AQI weight; that weight is ignored. "
+              "Rerun testing_datasets.py to rebuild it.")
+    _loaded_coefs = _loaded.get("coefficients", {})
+    if "smoke" in _loaded_coefs and "smoke_current" not in _loaded_coefs:
+        print("[NOTE] trained_model.json uses the old single 'smoke' coefficient. Smoking is now a "
+              "three-level categorical (never / former / current); using the literature-anchored "
+              "defaults for smoke_current and smoke_former instead. Rerun testing_datasets.py to rebuild.")
 else:
-    # Fallback used if trained_model.json is missing
-    INTERCEPT = -4.50
-    COEFS = {
-        "age_over_40": 0.28,
-        "heart": 0.22,
-        "hypertension": 0.20,
-        "smoke": 0.15,
-        "fam_stroke": 0.12,
-        "fam_smoke": 0.08,
-        "aqi_scaled": 0.035,
-    }
+    print("[WARNING] trained_model.json not found - using the built-in default coefficients.")
 
-# thresholds for risk levels based on predicted probability of stroke
-# derived from logistic regression model and literature-based risk ratios
+# thresholds for risk levels based on the model's predicted probability
+# these cutoffs are hand-chosen design thresholds (not derived from data and not clinically validated)
 LEVEL_THRESHOLDS = [
     (0.12, 5, "#ef4444", "Rest & Recharge Indoors", "🚨 High Environmental Caution", "Your body is working harder today due to outside air. Close windows, turn on indoor air cooling or filtering, and relax comfortably inside. If you feel sudden weakness, dizziness, or shortness of breath, please check in with a doctor or health professional right away."),
     (0.07, 4, "#f97316", "Stay Indoors or Mask Up", "⚠️ Elevated Indoor Caution", "Skip heavier outdoor tasks or workouts today. Stay comfortable inside with clean air, drink fresh water, and keep your regular prescriptions nearby."),
@@ -74,6 +113,68 @@ LEVEL_THRESHOLDS = [
     (0.02, 2, "#10b981", "Looking Safe", "👍 Green Light", "Your body and the outdoor air are in good harmony today. You are free to run errands, play, and go on walks."),
     (0.00, 1, "#10b981", "Prime Conditions", "🌟 Clear Sailing", "Air is crisp and your personal baseline is calm. Enjoy the outdoors, open up the windows, and stay active!"),
 ]
+
+# AQI-band guardrails: the EPA AQI category sets the RANGE of alert levels that is allowed.
+# The model's score still decides where a person lands inside that range, but it can no longer make clean air
+# look alarming (e.g., Level 4 at AQI 20) or dangerous air look fine (e.g., Level 2 at AQI 250).
+# These ranges are a design rule anchored to the EPA AQI category cutoffs; they are not clinically validated.
+AQI_LEVEL_RANGES = [
+    # (highest AQI in the band, lowest allowed level, highest allowed level)
+    (50, 1, 2),             # Good
+    (100, 1, 3),            # Moderate
+    (150, 2, 4),            # Unhealthy for Sensitive Groups
+    (200, 3, 5),            # Unhealthy
+    (float("inf"), 4, 5),   # Very Unhealthy and Hazardous
+]
+
+# the care-circle popup only appears when the air is at least this bad (AQI 101 = Unhealthy for Sensitive Groups)
+CARE_CIRCLE_MIN_AQI = 101
+
+# EPA sensitive groups for particle pollution include people with heart or lung disease, older adults, and children
+# (AirNow). The app only asks about age and heart disease, so those are the two it can use. The EPA gives no age for
+# "older adult"; 65 is a common convention and is an assumption here. Hypertension is not on the EPA list, so it is not used.
+SENSITIVE_MIN_AGE = 65
+# at or above this AQI, EPA guidance tells sensitive groups to act (Unhealthy for Sensitive Groups starts at 101)
+SENSITIVE_RULE_MIN_AQI = 101
+
+# lookup by level number: (lower probability cutoff, color, label, headline, advisory)
+LEVEL_INFO = {lvl: (thr, color, label, headline, advisory) for thr, lvl, color, label, headline, advisory in LEVEL_THRESHOLDS}
+
+
+def is_sensitive_group(age: float, heart: bool) -> bool:
+    """EPA-listed sensitive group that the app can identify: older adults or people with heart disease."""
+    return bool(heart) or age >= SENSITIVE_MIN_AGE
+
+
+def apply_aqi_guardrails(model_level: int, aqi: float, sensitive: bool = False) -> int:
+    """Clamp the model's level into the range allowed for today's AQI band.
+
+    Sensitive groups also get one extra step at AQI 101 and above: their lowest allowed level is the band's lowest
+    level plus one (capped at 5), because EPA guidance tells them to take action earlier than everyone else.
+    """
+    aqi_whole = round(aqi)  # AQI is reported as a whole number
+    for highest_aqi, lowest_level, highest_level in AQI_LEVEL_RANGES:
+        if aqi_whole <= highest_aqi:
+            level = max(lowest_level, min(highest_level, model_level))
+            if sensitive and aqi_whole >= SENSITIVE_RULE_MIN_AQI:
+                level = max(level, min(5, lowest_level + 1))
+            return level
+    return model_level
+
+
+def meter_probability(prob: float, level: int) -> float:
+    """Probability used only to place the thermometer pin, kept inside the displayed level's own band
+    so the pin always agrees with the label and color after a guardrail changes the level."""
+    low = LEVEL_INFO[level][0]
+    if level >= 5:
+        return max(low, prob)
+    high = LEVEL_INFO[level + 1][0]
+    return max(low, min(prob, high - 1e-9))
+
+
+def should_alert_care_circle(level: int, aqi: float, aqi_estimated: bool = False) -> bool:
+    """Care-circle popup: Level 4 or 5 AND AQI at least 101, and never for a neighborhood-average estimate."""
+    return level >= 4 and round(aqi) >= CARE_CIRCLE_MIN_AQI and not aqi_estimated
 
 
 # ------------------------------------------------------------------------------
@@ -96,6 +197,24 @@ def pm25_to_aqi(pm: float) -> float:
         if c_low <= pm < c_high:
             return round(((i_high - i_low) / (c_high - c_low)) * (pm - c_low) + i_low)
     return 500.0
+
+# Approximate inverse of pm25_to_aqi: used only when a PM2.5 value is not supplied (for example by tests)
+def aqi_to_pm25(aqi: float) -> float:
+    breakpoints = [
+        (0.0, 9.0, 0.0, 50.0),
+        (9.0, 35.4, 51.0, 100.0),
+        (35.4, 55.4, 101.0, 150.0),
+        (55.4, 125.4, 151.0, 200.0),
+        (125.4, 225.4, 201.0, 300.0),
+        (225.4, 500.4, 301.0, 500.0),
+    ]
+    if aqi <= 0:
+        return 0.0
+    for c_low, c_high, i_low, i_high in breakpoints:
+        if aqi <= i_high:
+            return max(c_low, c_low + (aqi - i_low) * (c_high - c_low) / (i_high - i_low))
+    return 500.4
+
 
 # Map EPA AQI values to descriptive categories and colors
 # based on the EPA's Air Quality Index (AQI) scale, which categorizes air quality into six levels ranging from "Good" to "Hazardous"
@@ -163,19 +282,29 @@ def fetch_purpleair_aqi(lat: float, lon: float) -> tuple[float, str, str, float,
     idx = {f: i for i, f in enumerate(fields)}
     closest_row = None
     min_dist = float("inf")
+    now = time.time()
 
     # latitude and longitude of the user's location are compared to each sensor's coordinates to find the closest sensor
     for row in data_rows:
+        # skip sensors with no PM2.5 reading or no recent update, so missing data is never treated as clean air (0.0)
+        if row[idx["pm2.5_cf_1"]] is None or row[idx["last_seen"]] is None:
+            continue
+        if now - row[idx["last_seen"]] > MAX_SENSOR_AGE_SECONDS:
+            continue
         s_lat = row[idx["latitude"]]
         s_lon = row[idx["longitude"]]
-        dist = math.hypot(s_lat - lat, s_lon - lon)
+        # shrink the longitude difference by cos(latitude) so degrees of lat/lon are comparable
+        dist = math.hypot(s_lat - lat, (s_lon - lon) * math.cos(math.radians(lat)))
         if dist < min_dist:
             min_dist = dist
             closest_row = row
 
+    if closest_row is None:
+        raise RuntimeError("No neighborhood air sensors with a recent reading were found close to this spot.")
+
     # get raw values
     sensor_name = closest_row[idx["name"]]
-    raw_pm25 = float(closest_row[idx["pm2.5_cf_1"]] or 0.0)
+    raw_pm25 = float(closest_row[idx["pm2.5_cf_1"]])
     humidity = float(closest_row[idx["humidity"]] or 50.0)
 
     # EPA calibration formula for PM2.5 based on PurpleAir's raw readings and humidity, which adjusts the raw PM2.5 value to better match EPA's reference monitors
@@ -199,7 +328,8 @@ def fetch_openweather_pollutants(lat: float, lon: float) -> dict:
         payload = json.loads(resp.read().decode("utf-8"))
 
     if not payload.get("list"):
-        raise RuntimeError("No air pollution data returned for this location.")
+        # No usable data; return all fields as None so ozone and NO2 show as N/A on the page.
+        return {"pm2_5": None, "o3": None, "no2": None, "pm10": None, "so2": None, "co": None, "owm_aqi_index": None}
 
     # extract the pollutant components and AQI index from the API response, which includes concentrations of various pollutants and an overall AQI index based on the US EPA scale
     components = payload["list"][0]["components"]
@@ -219,39 +349,51 @@ def fetch_openweather_pollutants(lat: float, lon: float) -> dict:
 # ------------------------------------------------------------------------------
 # compute the detailed stroke risk score based on user inputs and local air quality data using the logistic regression model coefficients
 def compute_detailed_risk(
-    age: int, hypertension: bool, heart: bool, smoke: bool, fam_smoke: bool, fam_stroke: bool,
-    aqi: float
-) -> tuple[float, int, str, str, str, str]:
+    age: int, hypertension: bool, heart: bool, smoke_status: str, fam_smoke: bool, fam_stroke: bool,
+    aqi: float, pm25: float | None = None
+) -> tuple[float, int, str, str, str, str, int, float]:
+    # returns: probability, final level, color, label, headline, advisory, the model's own level (before guardrails), meter probability
     age_over_40 = max(0.0, (age - 40) / 10.0)
-    aqi_scaled = aqi / 10.0
+    if pm25 is None:
+        pm25 = aqi_to_pm25(aqi)  # the air term is based on PM2.5 in ug/m3, not on the AQI number
     h_val = 1.0 if heart else 0.0
     ht_val = 1.0 if hypertension else 0.0
-    s_val = 1.0 if smoke else 0.0
     f_stroke_val = 1.0 if fam_stroke else 0.0
     f_smoke_val = 1.0 if fam_smoke else 0.0
+    # Pick the smoking coefficient for this person's status ("never"/"former"/"current").
+    # Anything unrecognised (including None or missing) is treated as "never" (no contribution).
+    if smoke_status == "current":
+        smoke_coef = COEFS["smoke_current"]
+    elif smoke_status == "former":
+        smoke_coef = COEFS["smoke_former"]
+    else:
+        smoke_coef = 0.0
     # convert user inputs into numerical values for the logistic regression calculation, where binary features are represented as 1.0 (true) or 0.0 (false), and age is scaled in decades over 40
 
     logit = (
         INTERCEPT
-        + COEFS.get("age_over_40", 0.28) * age_over_40
-        + COEFS.get("heart", 0.22) * h_val
-        + COEFS.get("hypertension", 0.20) * ht_val
-        + COEFS.get("smoke", 0.15) * s_val
-        + COEFS.get("fam_stroke", 0.12) * f_stroke_val
-        + COEFS.get("fam_smoke", 0.08) * f_smoke_val
-        + COEFS.get("aqi_scaled", 0.035) * aqi_scaled
+        + COEFS["age_over_40"] * age_over_40
+        + COEFS["heart"] * h_val
+        + COEFS["hypertension"] * ht_val
+        + smoke_coef
+        + COEFS["fam_stroke"] * f_stroke_val
+        + COEFS["fam_smoke"] * f_smoke_val
+        + AIR["pm25_log_rr_per_10ug"] * max(0.0, pm25 - AIR["reference_pm25"]) / 10.0
     )
-    # use trained_model values if available, otherwise use default coefficients for each feature to calculate the logit (linear combination of features and their weights)
+    # logit = linear combination of features and their weights (from trained_model.json, or the built-in defaults),
+    # plus the literature air term: ln(RR) per 10 ug/m3 of PM2.5 above the reference level (zero at or below it)
 
     prob = 1.0 / (1.0 + math.exp(-logit))
     # convert the logit to a probability using the logistic function, which maps any real-valued number into the (0, 1) interval
 
-    # determine the risk level, color, label, headline, and advisory based on the predicted probability of stroke using predefined thresholds
-    for threshold, level, color, label, headline, advisory in LEVEL_THRESHOLDS:
-        if prob >= threshold:
-            return prob, level, color, label, headline, advisory
+    # find the model's own level from the predicted probability using the thresholds
+    model_level = next(level for threshold, level, *_ in LEVEL_THRESHOLDS if prob >= threshold)
 
-    return prob, 1, "#10b981", "Prime Conditions", LEVEL_THRESHOLDS[-1][4], LEVEL_THRESHOLDS[-1][5]
+    # then keep that level inside the range allowed for today's AQI band (sensitive groups get one extra step at AQI 101+)
+    level = apply_aqi_guardrails(model_level, aqi, is_sensitive_group(age, heart))
+    _, color, label, headline, advisory = LEVEL_INFO[level]
+
+    return prob, level, color, label, headline, advisory, model_level, meter_probability(prob, level)
 
 
 # ------------------------------------------------------------------------------
@@ -548,17 +690,34 @@ HTML_PAGE = """<!DOCTYPE html>
       font-weight: 700;
       margin-top: 4px;
     }
-    .estimated-note {
-      font-size: 12px;
-      font-weight: 700;
-      color: #0369a1;
-      background: #f0f9ff;
-      border: 1.5px solid #bae6fd;
-      border-radius: 12px;
-      padding: 8px 12px;
+    /* Disclaimers and source notes: neutral slate with a darker left bar so they stand out without looking like an alert */
+    .estimated-note, .disclaimer {
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.45;
+      color: #1e293b;
+      background: #e2e8f0;
+      border: 1px solid #cbd5e1;
+      border-left: 5px solid #64748b;
+      border-radius: 10px;
+      padding: 10px 14px;
       margin-bottom: 16px;
-      display: none;
     }
+    .estimated-note { display: none; }
+    /* Friendly "PionAir is not working right now" box, shown only when no live air data is available */
+    .unavailable-box {
+      text-align: left;
+      background: #ffffff;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 16px;
+      padding: 16px 18px;
+      margin: 12px 0;
+      color: #1e293b;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .unavailable-title { font-size: 17px; font-weight: 800; margin-bottom: 6px; }
+    .unavailable-box p { margin: 0; }
 
     /* Pure Green -> Lime -> Yellow -> Orange -> Red Gradient Track */
     .meter-box {
@@ -756,10 +915,6 @@ HTML_PAGE = """<!DOCTYPE html>
         <span>❤️ Heart Conditions (chest pain or prior heart issues)</span>
       </label>
       <label class="check-button">
-        <input type="checkbox" id="smoke">
-        <span>🚬 I Smoke Tobacco Regularly</span>
-      </label>
-      <label class="check-button">
         <input type="checkbox" id="fam_stroke">
         <span>🧬 Family History of Stroke</span>
       </label>
@@ -771,7 +926,25 @@ HTML_PAGE = """<!DOCTYPE html>
   </div>
 
   <div class="form-group">
-    <label class="field-label">3. Do you have air conditioning indoors?</label>
+    <label class="field-label">3. What is your smoking status?</label>
+    <div class="checkbox-group">
+      <label class="check-button">
+        <input type="radio" name="smoke_status" value="never" checked>
+        <span>🚭 Never smoked tobacco</span>
+      </label>
+      <label class="check-button">
+        <input type="radio" name="smoke_status" value="former">
+        <span>🍃 Used to smoke (quit 5+ years ago)</span>
+      </label>
+      <label class="check-button">
+        <input type="radio" name="smoke_status" value="current">
+        <span>🚬 I currently smoke tobacco</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label class="field-label">4. Do you have air conditioning indoors?</label>
     <div class="ac-choice-grid">
       <label class="ac-choice-card">
         <input type="radio" name="has_ac" value="yes" checked>
@@ -785,7 +958,7 @@ HTML_PAGE = """<!DOCTYPE html>
   </div>
 
   <div class="form-group">
-    <label class="field-label">4. Where are you?</label>
+    <label class="field-label">5. Where are you?</label>
     <div class="toggle-row">
       <label><input type="radio" name="loc_mode" value="address" checked onclick="toggleMode()"> Enter City or Zip</label>
       <label><input type="radio" name="loc_mode" value="device" onclick="toggleMode()"> Phone GPS</label>
@@ -816,7 +989,9 @@ HTML_PAGE = """<!DOCTYPE html>
     </div>
 
     <!-- Details Grid: Values displayed, calculation unaffected -->
-    <div class="estimated-note" id="estimated-note">ℹ️ Live gas sensor data unavailable right now — PM2.5 is estimated from the AQI sensor.</div>
+    <div class="estimated-note" id="estimated-note">ℹ️ Ozone and NO₂ data is not available right now, so they show N/A. They never change your score.</div>
+    <div class="estimated-note" id="sensitive-note">ℹ️ You are in a group the EPA lists as sensitive to particle pollution (age 65 or older, or heart disease), so your alert level is one step higher when the AQI is 101 or above.</div>
+    <div class="estimated-note" id="aqi-estimated-note">ℹ️ No live sensor found nearby — this score uses the typical level for your neighborhood, not today's air.</div>
     <div class="pair-grid">
       <div class="mini-card" id="air-card">
         <div class="mini-card-label">AQI</div>
@@ -827,6 +1002,7 @@ HTML_PAGE = """<!DOCTYPE html>
         <div class="mini-card-label">PM2.5</div>
         <div class="mini-card-num" id="pm25-num" style="color: #6366f1;">--</div>
         <div class="mini-card-unit">µg/m³</div>
+        <div class="mini-card-desc" id="pm25-src" style="color:#64748b;"></div>
       </div>
       <div class="mini-card" id="o3-card">
         <div class="mini-card-label">Ozone (O₃)</div>
@@ -838,6 +1014,17 @@ HTML_PAGE = """<!DOCTYPE html>
         <div class="mini-card-num" id="no2-num" style="color: #0ea5e9;">--</div>
         <div class="mini-card-unit">µg/m³</div>
       </div>
+    </div>
+    <p class="disclaimer">
+      Sources: the AQI and PM2.5 come from the nearest PurpleAir sensor and drive your score. In NYC, if no sensor is available, both use the neighborhood's yearly average instead. Ozone and NO₂ are modeled estimates from OpenWeatherMap, shown for context only, and show N/A when unavailable.
+    </p>
+
+    <!-- NYC neighborhood context (display only; not used in the score) -->
+    <div class="explainer-card" id="nyc-card" style="display:none; margin-bottom:20px;">
+      <div class="explainer-title">🏙️ Your neighborhood, long term</div>
+      <p class="explainer-p" id="nyc-pm"></p>
+      <p class="explainer-p" id="nyc-cv"></p>
+      <p class="disclaimer" style="margin-top:12px; margin-bottom:0;">Neighborhood PM2.5 is a yearly average from the NYC Health Department's air quality data (NYC Open Data, "Air Quality"), and the hospitalization figure is a modeled estimate from the same source. These are long-term background figures, not today's air, and they do not change your score.</p>
     </div>
 
     <!-- Restored Classic Pure Green -> Lime -> Yellow -> Orange -> Red Thermometer Meter -->
@@ -871,7 +1058,7 @@ HTML_PAGE = """<!DOCTYPE html>
         <strong>1. Real-time Air Quality:</strong> We track live ground-level AQI alongside ambient readings for fine particles (PM2.5), Ozone (O₃), and Nitrogen Dioxide (NO₂).
       </p>
       <p class="explainer-p">
-        <strong>2. Your Clinical Profile:</strong> Your overall caution score connects your baseline age and vascular history with today's outdoor AQI without over-penalizing clean air days.
+        <strong>2. Your Clinical Profile:</strong> Your overall caution score combines your age and health history with today's outdoor AQI. Today's air sets the overall range of caution (clean air never triggers a high alert, and unhealthy air never reads as fine), and your health history moves you within that range. People the EPA lists as sensitive to particle pollution (age 65 or older, or heart disease) get one extra step of caution when the AQI is 101 or higher.
       </p>
       <p class="explainer-p">
         <strong>3. What your score means:</strong> A lower score means you can enjoy the outdoors without hesitation. A higher score is a gentle heads-up to avoid strenuous exercise until the air clears up.
@@ -991,16 +1178,43 @@ function displayResults(data) {
 
   // Pollutant cards
   const p = data.pollutants || {};
-  document.getElementById("pm25-num").textContent = p.pm2_5 != null ? p.pm2_5.toFixed(1) : "--";
-  document.getElementById("o3-num").textContent = p.o3 != null ? p.o3.toFixed(1) : "--";
-  document.getElementById("no2-num").textContent = p.no2 != null ? p.no2.toFixed(1) : "--";
+  document.getElementById("pm25-num").textContent = p.pm2_5 != null ? p.pm2_5.toFixed(1) : "N/A";
+  document.getElementById("o3-num").textContent = p.o3 != null ? p.o3.toFixed(1) : "N/A";
+  document.getElementById("no2-num").textContent = p.no2 != null ? p.no2.toFixed(1) : "N/A";
+
+  // Label the PM2.5 tile with where its value came from
+  const pm25SrcEl = document.getElementById("pm25-src");
+  if (data.pm25_source === "manual") pm25SrcEl.textContent = "approx from AQI";
+  else if (data.pm25_source === "neighborhood") pm25SrcEl.textContent = "neighborhood avg";
+  else if (data.pm25_source === "live") pm25SrcEl.textContent = "live sensor";
+  else pm25SrcEl.textContent = "";
 
   const note = document.getElementById("estimated-note");
   note.style.display = data.pollutants_estimated ? "block" : "none";
+  document.getElementById("aqi-estimated-note").style.display = data.aqi_estimated ? "block" : "none";
+  document.getElementById("sensitive-note").style.display = data.sensitive_rule_active ? "block" : "none";
+
+  // NYC neighborhood context card (display only)
+  const nyc = data.nyc_context;
+  const nycCard = document.getElementById("nyc-card");
+  if (nyc) {
+    document.getElementById("nyc-pm").textContent =
+      `${nyc.name}: average PM2.5 of ${nyc.pm25_annual_mean} µg/m³ (${nyc.pm25_period}). NYC overall: ${nyc.citywide_pm25} µg/m³.`;
+    const cvEl = document.getElementById("nyc-cv");
+    if (nyc.cv_burden_per_100k != null) {
+      cvEl.textContent = `Modeled PM2.5-related heart and blood vessel hospitalizations (age 40+): about ${nyc.cv_burden_per_100k} per 100,000 adults per year (${nyc.cv_period} estimate).`;
+      cvEl.style.display = "block";
+    } else {
+      cvEl.style.display = "none";
+    }
+    nycCard.style.display = "block";
+  } else {
+    nycCard.style.display = "none";
+  }
 
   // Thermometer Pin mapped to 0.0 - 0.12 probability scale
   const pin = document.getElementById("meter-pin");
-  const pinPos = Math.min(96, Math.max(4, (data.probability / 0.12) * 100));
+  const pinPos = Math.min(96, Math.max(4, ((data.meter_probability ?? data.probability) / 0.12) * 100));
   pin.style.left = pinPos + "%";
   pin.style.borderColor = data.color;
   document.getElementById("meter-text-val").textContent = data.label;
@@ -1014,8 +1228,8 @@ function displayResults(data) {
   document.getElementById("advisory-title").style.color = data.color;
   document.getElementById("advisory-text").textContent = data.advisory;
 
-  // Trigger friendly modal if resulting risk level is Level 4 or Level 5
-  if (data.level >= 4) {
+  // Trigger friendly modal only for Level 4 or 5 with AQI 101 or higher (decided by the server)
+  if (data.care_circle_alert) {
     const hasAC = document.querySelector('input[name="has_ac"]:checked').value === 'yes';
     handleHighRiskAlert(hasAC, data.aqi);
   }
@@ -1033,7 +1247,7 @@ async function evaluateRisk() {
     age: parseInt(document.getElementById("age").value, 10),
     hypertension: document.getElementById("hypertension").checked,
     heart: document.getElementById("heart").checked,
-    smoke: document.getElementById("smoke").checked,
+    smoke_status: document.querySelector('input[name="smoke_status"]:checked').value,
     fam_smoke: document.getElementById("fam_smoke").checked,
     fam_stroke: document.getElementById("fam_stroke").checked,
     has_ac: document.querySelector('input[name="has_ac"]:checked').value === 'yes'
@@ -1064,6 +1278,15 @@ async function evaluateRisk() {
       body: JSON.stringify(payload)
     });
     const data = await response.json();
+    if (data.kind === "unavailable") {
+      status.innerHTML = `
+        <div class="unavailable-box">
+          <div class="unavailable-title">😷 PionAir isn't working right now</div>
+          <p>We couldn't load live air quality data for this location, so we can't give you a result. Please try again later.</p>
+          <p class="disclaimer" style="margin:12px 0 0;">Note: this prototype uses PurpleAir for live air data, which needs an API key (PURPLEAIR_API_KEY). If the key is missing, expired, or over its limit, or there is no sensor near you, this message appears. Inside NYC, the app falls back to the neighborhood average instead.</p>
+        </div>`;
+      return;
+    }
     if (data.error) throw new Error(data.error);
 
     status.textContent = "";
@@ -1083,6 +1306,13 @@ async function evaluateRisk() {
 # ------------------------------------------------------------------------------
 # 5. SERVER DISPATCH
 # ------------------------------------------------------------------------------
+class DataUnavailable(Exception):
+    """Live air data is unavailable and there is no safe fallback (e.g. outside NYC without a working PurpleAir key).
+
+    The server converts this into a friendly 503 message rather than the raw traceback.
+    """
+
+
 # HTTP server handler that serves the HTML page and handles API requests for evaluating risk based on user input and air quality data
 class AppHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
@@ -1097,6 +1327,14 @@ class AppHandler(http.server.BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
 
             try:
+                age = payload.get("age")
+                if isinstance(age, bool) or not isinstance(age, (int, float)) or not (18 <= age <= 120):
+                    raise ValueError("Please enter an age between 18 and 120.")
+                ctx = None              # NYC neighborhood context (stays None for manual entry / outside NYC)
+                aqi_estimated = False   # True only when AQI comes from the NYC neighborhood average, not a live sensor
+                live_pm25 = None        # live sensor PM2.5, used only to compare with the neighborhood average
+                model_pm25 = None       # PM2.5 (ug/m3) that drives the air term in the score
+                pm25_source = "live"    # where the PM2.5 tile value came from: "live", "manual", "neighborhood"
                 # Check whether user provided a manual AQI value for testing
                 if "manual_aqi" in payload:
                     aqi = float(payload["manual_aqi"])
@@ -1114,8 +1352,10 @@ class AppHandler(http.server.BaseHTTPRequestHandler):
                     else:
                         approx_pm = 125.4 + ((aqi - 200.0) / 100.0) * 100.0
                     pollutant = f"{approx_pm:.1f} µg/m³"
-                    pollutants = {"pm2_5": approx_pm, "o3": 0.0, "no2": 0.0, "pm10": None, "so2": None, "co": None, "owm_aqi_index": None}
+                    pollutants = {"pm2_5": approx_pm, "o3": None, "no2": None, "pm10": None, "so2": None, "co": None, "owm_aqi_index": None}
+                    model_pm25 = approx_pm
                     used_fallback_pollutants = True
+                    pm25_source = "manual"
                 else:
                     if "query" in payload:
                         lat, lon, label = geocode_address(payload["query"])
@@ -1124,28 +1364,52 @@ class AppHandler(http.server.BaseHTTPRequestHandler):
                         lon = payload["lon"]
                         label = f"Your Location ({lat:.3f}, {lon:.3f})"
 
-                    aqi, station, pollutant, epa_pm25, humidity = fetch_purpleair_aqi(lat, lon)
+                    # NYC neighborhood context (None outside NYC or if the lookup fails)
+                    ctx = nyc_context(lat, lon, zip_hint=payload.get("query"))  # typed ZIPs resolve without a network call
+
+                    try:
+                        aqi, station, pollutant, epa_pm25, humidity = fetch_purpleair_aqi(lat, lon)
+                        live_pm25 = epa_pm25
+                    except Exception as sensor_exc:
+                        # No usable live sensor. In NYC, fall back to the neighborhood's long-term PM2.5 average,
+                        # clearly flagged as an estimate (this includes a missing PurpleAir key; the reason is printed below).
+                        # Outside NYC there is no neighborhood average to fall back on, so keep the original error.
+                        if not ctx:
+                            raise DataUnavailable(str(sensor_exc)) from sensor_exc
+                        print(f"[PurpleAir] {sensor_exc} -> using NYC neighborhood average for {ctx['name']}")
+                        epa_pm25 = ctx["pm25_annual_mean"]
+                        aqi = pm25_to_aqi(epa_pm25)
+                        station = f"{ctx['name']} neighborhood average (no live sensor)"
+                        pollutant = f"{epa_pm25:.1f} µg/m³"
+                        humidity = None
+                        aqi_estimated = True
+                        pm25_source = "neighborhood"
+
+                    model_pm25 = epa_pm25  # live sensor value, or the neighborhood average in the NYC fallback
 
                     try:
                         pollutants = fetch_openweather_pollutants(lat, lon)
                         used_fallback_pollutants = False
                     except Exception:
-                        # OWM key not set yet, or request failed. Fall back to the
-                        # PurpleAir PM2.5 estimate for pm2_5 and treat o3/no2 as
-                        # 0 (i.e. "unknown, don't let them affect the score") so
-                        # the model still runs rather than crashing the request.
-                        pollutants = {"pm2_5": epa_pm25, "o3": 0.0, "no2": 0.0, "pm10": None, "so2": None, "co": None, "owm_aqi_index": None}
+                        # OWM key not set yet, or request failed. Leave o3/no2 as None (shown as
+                        # N/A on the page) so we never imply a measured value we do not have.
+                        pollutants = {"pm2_5": epa_pm25, "o3": None, "no2": None, "pm10": None, "so2": None, "co": None, "owm_aqi_index": None}
                         used_fallback_pollutants = True
 
+                    # The PM2.5 tile always shows the value that drives the score (live sensor, or the
+                    # NYC neighborhood average in the fallback), not OpenWeatherMap's modeled PM2.5.
+                    pollutants["pm2_5"] = epa_pm25
+
                 # NO2, PM2.5, and O3 are passed for display only; risk is driven by AQI + clinical profile
-                prob, level, color, label_text, headline, advisory = compute_detailed_risk(
+                prob, level, color, label_text, headline, advisory, model_level, meter_prob = compute_detailed_risk(
                     payload["age"],
                     payload["hypertension"],
                     payload["heart"],
-                    payload["smoke"],
+                    payload.get("smoke_status", "never"),
                     payload["fam_smoke"],
                     payload["fam_stroke"],
                     aqi,
+                    model_pm25,
                 )
 
                 resp = {
@@ -1157,13 +1421,29 @@ class AppHandler(http.server.BaseHTTPRequestHandler):
                     "pollutants": pollutants,
                     "pollutants_estimated": used_fallback_pollutants,
                     "probability": prob,
+                    "meter_probability": meter_prob,
+                    "model_level": model_level,
+                    "guardrail_applied": level != model_level,
+                    "care_circle_alert": should_alert_care_circle(level, aqi, aqi_estimated),
+                    "sensitive_group": is_sensitive_group(payload["age"], payload["heart"]),
+                    "sensitive_rule_active": is_sensitive_group(payload["age"], payload["heart"]) and round(aqi) >= SENSITIVE_RULE_MIN_AQI,
+                    "pm25_used": model_pm25,
+                    "pm25_source": pm25_source,
                     "level": level,
                     "color": color,
                     "label": label_text,
                     "headline": headline,
                     "advisory": advisory,
+                    "nyc_context": ctx,
+                    "aqi_estimated": aqi_estimated,
+                    "live_pm25": live_pm25,
                 }
                 self.send_response(200)
+            except DataUnavailable as exc:
+                # Expected: no live air data and no neighborhood-average fallback. Not a crash.
+                print(f"[Air data unavailable] {exc}")
+                resp = {"error": "PionAir is not working right now.", "kind": "unavailable"}
+                self.send_response(503)
             except Exception as exc:
                 print("\n" + "=" * 60)
                 print("FULL ERROR DETAILS (this is what actually happened):")

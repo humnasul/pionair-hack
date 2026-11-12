@@ -1,0 +1,182 @@
+{
+  "generated": "2026-11-11T19:48:52",
+  "csv": "export.csv",
+  "results": [
+    {
+      "status": "PASS",
+      "check": "1.1 PM2.5 covers all 42 UHF neighborhoods",
+      "detail": "found 42"
+    },
+    {
+      "status": "PASS",
+      "check": "1.2 PM2.5 covers all 5 boroughs",
+      "detail": "found 5"
+    },
+    {
+      "status": "PASS",
+      "check": "1.3 every neighborhood with PM2.5 also has a CV burden value",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "check": "1.4 stored values match export.csv (independent recompute)",
+      "detail": "94 values checked, 0 mismatches"
+    },
+    {
+      "status": "PASS",
+      "check": "1.5 PM2.5 annual means are in a plausible range (2 to 40 ug/m3)",
+      "detail": "min 5.26, max 9.51"
+    },
+    {
+      "status": "PASS",
+      "check": "1.6 CV burden values are non-negative",
+      "detail": "min 3.0, max 14.0"
+    },
+    {
+      "status": "PASS",
+      "check": "1.7 citywide PM2.5 lies within the borough range",
+      "detail": "citywide 6.26, boroughs 5.95 to 7.71"
+    },
+    {
+      "status": "PASS",
+      "check": "1.8 PM2.5 data is recent (within 2 years)",
+      "detail": "period 2024"
+    },
+    {
+      "status": "WARN",
+      "check": "1.9 CV burden data is recent (within 3 years)",
+      "detail": "period 2017-2019 (modeled estimates are published with a delay; label as such in the app)"
+    },
+    {
+      "status": "PASS",
+      "check": "2.1 risk never decreases as AQI increases (all personas, AQI 0 to 500)",
+      "detail": ""
+    },
+    {
+      "status": "INFO",
+      "check": "2.2 cleanest vs dirtiest NYC neighborhood changes the alert level for how many personas?",
+      "detail": "2 of 5 (Rockaways 5.26 vs Chelsea - Clinton 9.51 ug/m3). If this is low, the alert is driven mostly by the user's profile, not the air."
+    },
+    {
+      "status": "PASS",
+      "check": "2.3 model's implied air-attributable share at NYC's average PM2.5 vs NYC's reported share",
+      "detail": "model implies 0.14% (1 in 726) against the 5 ug/m3 reference and 0.68% (1 in 147) against zero PM2.5, vs NYC about 0.71% (1 in 140). Different outcome (stroke vs cardiovascular hospitalizations), period, and method, so this is consistency with the literature, not validation."
+    },
+    {
+      "status": "INFO",
+      "check": "2.4 neighborhood PM2.5 vs modeled CV burden: Spearman rank correlation",
+      "detail": "rho = -0.04 across 42 neighborhoods. Highest burden: Hunts Point - Mott Haven (6.89 ug/m3), East Harlem (6.66 ug/m3), Crotona - Tremont (6.58 ug/m3). A weak correlation is expected if the burden mostly reflects local baseline disease rates. Do not use this as a test of the model; the integrity checks in Part 1 cover the join."
+    },
+    {
+      "status": "PASS",
+      "check": "3.1 ZIPs in nyc_zip_lookup.json match the ZIP boundary CSV",
+      "detail": "221 ZIPs"
+    },
+    {
+      "status": "INFO",
+      "check": "3.2 boroughs inferred from neighboring ZIPs (not from the prefix)",
+      "detail": "12: 07305=Manhattan, 10550=Bronx, 10704=Bronx, 10705=Bronx, 10803=Bronx, 11001=Queens, 11004=Queens, 11005=Queens, 11020=Queens, 11021=Queens, 11040=Queens, 11580=Queens. Review these; they are the only guessed boroughs."
+    },
+    {
+      "status": "INFO",
+      "check": "3.3 ZIPs mostly outside NYC (typed ones are hidden)",
+      "detail": "10: ['07305', '10550', '10704', '10705', '10803', '11001', '11020', '11021', '11040', '11580']"
+    },
+    {
+      "status": "PASS",
+      "check": "3.4 an interior point of each NYC ZIP resolves back to that ZIP",
+      "detail": "211/211"
+    },
+    {
+      "status": "PASS",
+      "check": "3.5 landmark spot checks resolve to the right borough, locally",
+      "detail": "8/8"
+    },
+    {
+      "status": "PASS",
+      "check": "3.6 points outside the NYC area are rejected",
+      "detail": "2 checked"
+    },
+    {
+      "status": "PASS",
+      "check": "3.7 typed NYC ZIPs give the right borough",
+      "detail": "8 checked"
+    },
+    {
+      "status": "PASS",
+      "check": "3.8 typed ZIPs outside or mostly outside NYC are hidden",
+      "detail": "12 checked"
+    },
+    {
+      "status": "PASS",
+      "check": "3.9 none of the checks above needed a network call",
+      "detail": "0 calls"
+    },
+    {
+      "status": "PASS",
+      "check": "4.1 every level stays inside its AQI band's allowed range",
+      "detail": "2505 persona/AQI combinations checked"
+    },
+    {
+      "status": "PASS",
+      "check": "4.2 the final level never decreases as AQI rises",
+      "detail": "all personas, AQI 0 to 500"
+    },
+    {
+      "status": "PASS",
+      "check": "4.3 care-circle popup fires only for Level 4+ AND AQI 101+, and never for an estimate",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "check": "4.4 thermometer pin position stays inside the displayed level's band",
+      "detail": ""
+    },
+    {
+      "status": "PASS",
+      "check": "4.5 motivating cases: 80yo with hypertension at AQI 20 is at most Level 2; healthy 30yo at AQI 250 is at least Level 4",
+      "detail": "80yo at AQI 20: Level 4 -> 2; healthy 30yo at AQI 250: Level 1 -> 4"
+    },
+    {
+      "status": "PASS",
+      "check": "4.6 sensitive groups get one extra step at AQI 101+, and nobody else is affected",
+      "detail": "all personas, AQI 0 to 500"
+    },
+    {
+      "status": "PASS",
+      "check": "4.7 air term: no effect at or below the reference PM2.5, and RR per 10 ug/m3 above it matches the cited value",
+      "detail": "odds ratio for +10 ug/m3 = 1.0110 (cited 1.011)"
+    },
+    {
+      "status": "PASS",
+      "check": "4.8 trained_model.json holds the cited PM2.5 estimate (RR 1.011), no AQI weight, and app.py uses it",
+      "detail": "Shah et al., BMJ 2015;350:h1295 (doi:10.1136/bmj.h1295): short-term PM2.5 and stroke admis..."
+    }
+  ],
+  "typical_day_levels_by_persona": {
+    "healthy 30yo": {
+      "1": 42
+    },
+    "healthy 50yo": {
+      "1": 42
+    },
+    "65yo hypertension": {
+      "2": 41,
+      "3": 1
+    },
+    "80yo hypertension": {
+      "2": 41,
+      "3": 1
+    },
+    "55yo smoker": {
+      "2": 42
+    }
+  },
+  "effect_size": {
+    "implied_attributable_fraction_zero_baseline": 0.0068250428765167515,
+    "implied_attributable_fraction_reference_baseline": 0.001377490387961089,
+    "nyc_reference": 0.007142857142857143,
+    "spearman_pm25_vs_cv": -0.0356116571238049
+  },
+  "limits": "NYC figures are modeled neighborhood estimates; they cannot validate individual risk. Check 2.4 is informational only."
+}

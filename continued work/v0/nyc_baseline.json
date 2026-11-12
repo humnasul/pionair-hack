@@ -1,0 +1,368 @@
+{
+  "source": "NYC Open Data - Air Quality (DOHMH), data.cityofnewyork.us/d/c3uy-2p5r",
+  "note": "Long-term neighborhood averages and modeled burden estimates. Not live air quality.",
+  "pm25_annual_mean": {
+    "units": "ug/m3",
+    "period": "2024",
+    "citywide": 6.26,
+    "borough": {
+      "Bronx": 6.39,
+      "Brooklyn": 6.44,
+      "Manhattan": 7.71,
+      "Queens": 5.95,
+      "Staten Island": 5.95
+    },
+    "uhf42": {
+      "101": {
+        "name": "Kingsbridge - Riverdale",
+        "value": 6.33
+      },
+      "102": {
+        "name": "Northeast Bronx",
+        "value": 6.13
+      },
+      "103": {
+        "name": "Fordham - Bronx Pk",
+        "value": 6.38
+      },
+      "104": {
+        "name": "Pelham - Throgs Neck",
+        "value": 6.26
+      },
+      "105": {
+        "name": "Crotona - Tremont",
+        "value": 6.58
+      },
+      "106": {
+        "name": "High Bridge - Morrisania",
+        "value": 6.57
+      },
+      "107": {
+        "name": "Hunts Point - Mott Haven",
+        "value": 6.89
+      },
+      "201": {
+        "name": "Greenpoint",
+        "value": 7.43
+      },
+      "202": {
+        "name": "Downtown - Heights - Slope",
+        "value": 7.23
+      },
+      "203": {
+        "name": "Bedford Stuyvesant - Crown Heights",
+        "value": 6.55
+      },
+      "204": {
+        "name": "East New York",
+        "value": 6.31
+      },
+      "205": {
+        "name": "Sunset Park",
+        "value": 7.06
+      },
+      "206": {
+        "name": "Borough Park",
+        "value": 6.3
+      },
+      "207": {
+        "name": "East Flatbush - Flatbush",
+        "value": 6.21
+      },
+      "208": {
+        "name": "Canarsie - Flatlands",
+        "value": 5.83
+      },
+      "209": {
+        "name": "Bensonhurst - Bay Ridge",
+        "value": 6.18
+      },
+      "210": {
+        "name": "Coney Island - Sheepshead Bay",
+        "value": 5.9
+      },
+      "211": {
+        "name": "Williamsburg - Bushwick",
+        "value": 7.2
+      },
+      "301": {
+        "name": "Washington Heights",
+        "value": 6.67
+      },
+      "302": {
+        "name": "Central Harlem - Morningside Heights",
+        "value": 6.85
+      },
+      "303": {
+        "name": "East Harlem",
+        "value": 6.66
+      },
+      "304": {
+        "name": "Upper West Side",
+        "value": 6.77
+      },
+      "305": {
+        "name": "Upper East Side",
+        "value": 7.04
+      },
+      "306": {
+        "name": "Chelsea - Clinton",
+        "value": 9.51
+      },
+      "307": {
+        "name": "Gramercy Park - Murray Hill",
+        "value": 8.89
+      },
+      "308": {
+        "name": "Greenwich Village - SoHo",
+        "value": 8.93
+      },
+      "309": {
+        "name": "Union Square - Lower East Side",
+        "value": 8.45
+      },
+      "310": {
+        "name": "Lower Manhattan",
+        "value": 7.96
+      },
+      "401": {
+        "name": "Long Island City - Astoria",
+        "value": 7.31
+      },
+      "402": {
+        "name": "West Queens",
+        "value": 6.78
+      },
+      "403": {
+        "name": "Flushing - Clearview",
+        "value": 5.99
+      },
+      "404": {
+        "name": "Bayside - Little Neck",
+        "value": 5.46
+      },
+      "405": {
+        "name": "Ridgewood - Forest Hills",
+        "value": 6.23
+      },
+      "406": {
+        "name": "Fresh Meadows",
+        "value": 5.57
+      },
+      "407": {
+        "name": "Southwest Queens",
+        "value": 5.83
+      },
+      "408": {
+        "name": "Jamaica",
+        "value": 5.78
+      },
+      "409": {
+        "name": "Southeast Queens",
+        "value": 5.37
+      },
+      "410": {
+        "name": "Rockaways",
+        "value": 5.26
+      },
+      "501": {
+        "name": "Port Richmond",
+        "value": 6.4
+      },
+      "502": {
+        "name": "Stapleton - St. George",
+        "value": 6.05
+      },
+      "503": {
+        "name": "Willowbrook",
+        "value": 6.02
+      },
+      "504": {
+        "name": "South Beach - Tottenville",
+        "value": 5.75
+      }
+    }
+  },
+  "cv_hospitalizations_due_to_pm25_age40plus": {
+    "units": "estimated annual rate per 100,000 adults",
+    "period": "2017-2019",
+    "citywide": 10.0,
+    "borough": {
+      "Bronx": 12.0,
+      "Brooklyn": 11.0,
+      "Manhattan": 9.0,
+      "Queens": 8.0,
+      "Staten Island": 11.0
+    },
+    "uhf42": {
+      "101": {
+        "name": "Kingsbridge - Riverdale",
+        "value": 10.0
+      },
+      "102": {
+        "name": "Northeast Bronx",
+        "value": 10.0
+      },
+      "103": {
+        "name": "Fordham - Bronx Pk",
+        "value": 12.0
+      },
+      "104": {
+        "name": "Pelham - Throgs Neck",
+        "value": 11.0
+      },
+      "105": {
+        "name": "Crotona - Tremont",
+        "value": 13.0
+      },
+      "106": {
+        "name": "High Bridge - Morrisania",
+        "value": 13.0
+      },
+      "107": {
+        "name": "Hunts Point - Mott Haven",
+        "value": 14.0
+      },
+      "201": {
+        "name": "Greenpoint",
+        "value": 8.0
+      },
+      "202": {
+        "name": "Downtown - Heights - Slope",
+        "value": 9.0
+      },
+      "203": {
+        "name": "Bedford Stuyvesant - Crown Heights",
+        "value": 13.0
+      },
+      "204": {
+        "name": "East New York",
+        "value": 13.0
+      },
+      "205": {
+        "name": "Sunset Park",
+        "value": 8.0
+      },
+      "206": {
+        "name": "Borough Park",
+        "value": 10.0
+      },
+      "207": {
+        "name": "East Flatbush - Flatbush",
+        "value": 11.0
+      },
+      "208": {
+        "name": "Canarsie - Flatlands",
+        "value": 11.0
+      },
+      "209": {
+        "name": "Bensonhurst - Bay Ridge",
+        "value": 9.0
+      },
+      "210": {
+        "name": "Coney Island - Sheepshead Bay",
+        "value": 12.0
+      },
+      "211": {
+        "name": "Williamsburg - Bushwick",
+        "value": 12.0
+      },
+      "301": {
+        "name": "Washington Heights",
+        "value": 10.0
+      },
+      "302": {
+        "name": "Central Harlem - Morningside Heights",
+        "value": 11.0
+      },
+      "303": {
+        "name": "East Harlem",
+        "value": 14.0
+      },
+      "304": {
+        "name": "Upper West Side",
+        "value": 8.0
+      },
+      "305": {
+        "name": "Upper East Side",
+        "value": 7.0
+      },
+      "306": {
+        "name": "Chelsea - Clinton",
+        "value": 8.0
+      },
+      "307": {
+        "name": "Gramercy Park - Murray Hill",
+        "value": 7.0
+      },
+      "308": {
+        "name": "Greenwich Village - SoHo",
+        "value": 5.0
+      },
+      "309": {
+        "name": "Union Square - Lower East Side",
+        "value": 10.0
+      },
+      "310": {
+        "name": "Lower Manhattan",
+        "value": 7.0
+      },
+      "401": {
+        "name": "Long Island City - Astoria",
+        "value": 9.0
+      },
+      "402": {
+        "name": "West Queens",
+        "value": 7.0
+      },
+      "403": {
+        "name": "Flushing - Clearview",
+        "value": 6.0
+      },
+      "404": {
+        "name": "Bayside - Little Neck",
+        "value": 3.0
+      },
+      "405": {
+        "name": "Ridgewood - Forest Hills",
+        "value": 7.0
+      },
+      "406": {
+        "name": "Fresh Meadows",
+        "value": 6.0
+      },
+      "407": {
+        "name": "Southwest Queens",
+        "value": 10.0
+      },
+      "408": {
+        "name": "Jamaica",
+        "value": 9.0
+      },
+      "409": {
+        "name": "Southeast Queens",
+        "value": 6.0
+      },
+      "410": {
+        "name": "Rockaways",
+        "value": 9.0
+      },
+      "501": {
+        "name": "Port Richmond",
+        "value": 11.0
+      },
+      "502": {
+        "name": "Stapleton - St. George",
+        "value": 12.0
+      },
+      "503": {
+        "name": "Willowbrook",
+        "value": 11.0
+      },
+      "504": {
+        "name": "South Beach - Tottenville",
+        "value": 10.0
+      }
+    }
+  }
+}
