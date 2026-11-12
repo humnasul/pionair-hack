@@ -1,9 +1,16 @@
 '''
 Humna Sultan
 PURPOSE OF THE FILE:
-- output a json file with weights from a logistic regression model trained on a stroke cohort (patient terms are fitted;
-  family-history terms are simulated and pinned to literature) plus a literature-based PM2.5 air term (not fitted)
-- utilizes: individualized data processing, logistic regression, train-test-split, sklearn, pandas, numpy, json
+- Build the weights for the prototype logistic regression model and write them to a JSON for app.py.
+- Patient terms fitted from a stroke cohort:
+    * age_over_40, heart disease, hypertension
+- Pinned to published literature (not fitted):
+    * smoke_current (INTERSTROKE OR 1.67 for ischemic stroke)
+    * smoke_former  (near-baseline after 5+ years of quitting, Surgeon General reports)
+    * fam_stroke    (pooled RR 1.40, PMID 30472175)
+    * fam_smoke     (household secondhand smoke RR 1.23, Lee et al. 2017)
+- PM2.5 air term added from a published meta-analysis (Shah et al., BMJ 2015), not fitted and not shrunk.
+- utilizes: pandas, numpy, scikit-learn, json
 '''
 import json
 import math
@@ -12,13 +19,9 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import brier_score_loss, roc_auc_score
 from sklearn.model_selection import train_test_split
-# imports for machine learning
 
 STROKE_CSV = "healthcare-dataset-stroke-data.csv"
-# file for the data source (stroke patient records). The Kaggle air quality CSV is no longer used: its AQI values were
-# assigned to patients at random, so they could not teach the model anything about air.
 OUTPUT_JSON = "trained_model.json"
-# output is a json with weights from the model
 
 # Air term, taken from a published meta-analysis instead of being fitted (see README references):
 # Shah et al., BMJ 2015;350:h1295 - short-term PM2.5 exposure and stroke hospital admission or mortality,
@@ -33,74 +36,65 @@ AIR_REFERENCE_PM25 = 5.0
 def main():
     print("1. Loading stroke cohort...")
     df_stroke = pd.read_csv(STROKE_CSV)
-    # reading file
-
     print(f"-> Stroke patient records: {len(df_stroke):,}")
 
     # Focus on adult cohort (age >= 18)
     df_stroke = df_stroke[df_stroke["age"] >= 18].reset_index(drop=True)
     n_samples = len(df_stroke)
 
-    print(f"2. Synthesizing training matrix (N = {n_samples:,})...")
+    print(f"2. Building training matrix (N = {n_samples:,})...")
     df = pd.DataFrame()
 
-    # Clinical features
+    # ----- Patient terms that are FITTED from Kaggle -----
     df["age_over_40"] = np.maximum(0.0, (df_stroke["age"] - 40.0) / 10.0)
-    # Age over 40 is scaled in decades (e.g., 50 years old = 1.0, 60 years old = 2.0)
     df["heart"] = df_stroke["heart_disease"].astype(float)
-    # Heart disease is a binary feature (0 = no, 1 = yes)
     df["hypertension"] = df_stroke["hypertension"].astype(float)
-    # Hypertension is a binary feature (0 = no, 1 = yes)
-    df["smoke"] = df_stroke["smoking_status"].isin(["smokes", "formerly smoked"]).astype(float)
-    # Smoking status is a binary feature (0 = never smoked, 1 = smokes or formerly smoked)
 
-    # Independent background prevalence without circular target leakage
+    # ----- Smoking as a three-level categorical (never / former / current) -----
+    # The Kaggle dataset DOES record "smokes" vs "formerly smoked" vs "never smoked" vs "Unknown",
+    # but it is a small observational snapshot and the two smoker categories carry very different
+    # real-world risk. We therefore do NOT fit the smoking coefficients from the Kaggle outcome
+    # column; we pin them to published literature below, same as the family history terms.
+    smoking = df_stroke["smoking_status"]
+    df["smoke_current"] = (smoking == "smokes").astype(float)
+    df["smoke_former"] = (smoking == "formerly smoked").astype(float)
+    # "never smoked" and "Unknown" -> both stay 0 (treated the same as never)
+
+    # ----- Simulated family-history fields, independent of the outcome -----
     np.random.seed(42)
     df["fam_stroke"] = np.random.binomial(1, 0.14, size=n_samples).astype(float)
-    # Family history of stroke is a binary feature (0 = no, 1 = yes) with ~14% prevalence
     df["fam_smoke"] = np.random.binomial(1, 0.16, size=n_samples).astype(float)
-    # Family history of smoking is a binary feature (0 = no, 1 = yes) with ~16% prevalence
 
     # Air quality is NOT a training feature: the patient file has no air exposure, so training could not learn an air
     # effect. The air term is added after training from the published estimate above (PM2.5, O3, and NO2 are displayed on
     # the frontend; only PM2.5 feeds the risk model).
 
-    # Target: Cerebrovascular event
     df["stroke_event"] = df_stroke["stroke"].astype(int)
 
-    feature_cols = [
-        "age_over_40",
-        "heart",
-        "hypertension",
-        "smoke",
-        "fam_stroke",
-        "fam_smoke",
+    # Only three patient terms are fitted from data.
+    fitted_feature_cols = ["age_over_40", "heart", "hypertension"]
+    # The shipped model also uses the four pinned terms below.
+    shipped_feature_cols = fitted_feature_cols + [
+        "smoke_current", "smoke_former", "fam_stroke", "fam_smoke",
     ]
 
-    X = df[feature_cols].values
+    X_fit = df[fitted_feature_cols].values
     y = df["stroke_event"].values
-    # Split into train/test sets (stratified to preserve class balance)
-    # feature cols = independent variables = characteristics of the patient and environmental factors
-    # target col = dependent variable = whether the patient had a stroke or not
 
-    print("3. Splitting into train/test sets...")
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.20, random_state=42, stratify=y
-    )
-    # Split the data into training and testing sets for training
+    print("3. Splitting into train/test sets (row-based, stratified)...")
+    row_idx = np.arange(n_samples)
+    idx_train, idx_test = train_test_split(row_idx, test_size=0.20, random_state=42, stratify=y)
+    X_fit_train, X_fit_test = X_fit[idx_train], X_fit[idx_test]
+    y_train, y_test = y[idx_train], y[idx_test]
 
-    # Fit Logistic Regression without artificial balance distortion
-    print("4. Fitting Logistic Regression model...")
+    print("4. Fitting Logistic Regression model (3 patient terms, from data)...")
     model = LogisticRegression(solver="lbfgs", max_iter=1000)
-    # lbfgs is a solver for optimization in logistic regression, max_iter is the maximum number of iterations for the solver to converge
-    # commonly used for problems with large datasets and many features, as it can handle high-dimensional data efficiently
-    model.fit(X_train, y_train)
+    model.fit(X_fit_train, y_train)
 
-    test_preds = model.predict_proba(X_test)[:, 1]
-    # Evaluate model performance on test set
+    test_preds = model.predict_proba(X_fit_test)[:, 1]
     auc = roc_auc_score(y_test, test_preds)
     brier = brier_score_loss(y_test, test_preds)
-    print(f"-> Held-out test set (20% split, fitted model BEFORE overrides/shrinkage): ROC-AUC = {auc:.3f}, Brier Loss = {brier:.4f}")
+    print(f"-> Held-out test set (fitted 3-term model, BEFORE overrides/shrinkage): ROC-AUC = {auc:.3f}, Brier Loss = {brier:.4f}")
 
     # Hand-set baseline intercept: sigmoid(-4.50) = ~1.1% for someone age 40 or under with no risk factors at the
     # reference PM2.5 level. This is a design assumption for a short-term risk. It is not fitted to, or validated against,
@@ -108,36 +102,34 @@ def main():
     model_payload = {
         "intercept": -4.50,
         "coefficients": {
-            feat: float(coef) for feat, coef in zip(feature_cols, model.coef_[0])
+            feat: float(coef) for feat, coef in zip(fitted_feature_cols, model.coef_[0])
         },
     }
-    # Export model weights to JSON for use in app.py
 
-    # Pin the simulated family-history fields to pooled clinical meta-analyses
+    # Pin the smoking and family-history fields to published literature.
+    # These replace any value for the same feature. Smoking is added fresh because it is not fitted.
     literature_overrides = {
-        "fam_stroke": math.log(1.40),    # Family history pooled RR (PMID 30472175)
-        "fam_smoke": math.log(1.23),     # Household secondhand smoke RR (Lee et al. 2017)
+        "smoke_current": math.log(1.67),   # INTERSTROKE OR ~1.67 for ischemic stroke (current smoker vs never)
+        "smoke_former":  math.log(1.05),   # Former smoker risk returns to about baseline after 5+ years (Surgeon General)
+        "fam_stroke":    math.log(1.40),   # Family history pooled RR (PMID 30472175)
+        "fam_smoke":     math.log(1.23),   # Household secondhand smoke RR (Lee et al. 2017)
     }
-    # Apply overrides to model coefficients IF NEEDED (i.e., if the feature is present in the model)
     for feat, value in literature_overrides.items():
-        if feat in model_payload["coefficients"]:
-            model_payload["coefficients"][feat] = value
-    # replace the coefficients for the specified features with literature-based values
+        model_payload["coefficients"][feat] = value
 
-    print("\n5. Applying epidemiological overrides to simulated terms:")
+    print("\n5. Applying literature anchors to the four pinned coefficients:")
     for feat, value in literature_overrides.items():
-        print(f"   {feat:15s} -> {value:.4f}")
+        print(f"   {feat:15s} -> {value:.4f}  (= ln of the cited RR)")
 
-    # Apply shrinkage (0.53) to prevent over-compounding of stacked features
-    # preventing the model from overestimating risk when multiple risk factors are present
-    # NOTE: this is applied AFTER the literature overrides, so the shipped family-history effects are also shrunk.
-    # The air term below is deliberately NOT shrunk: it is an already-pooled published estimate, and shrinking it would
-    # stop it matching the study it is cited from.
+    # Apply shrinkage (0.53) to prevent over-compounding of stacked features.
+    # NOTE: this is applied AFTER the literature overrides, so the shipped family-history and smoking effects are also
+    # shrunk. The air term below is deliberately NOT shrunk: it is an already-pooled published estimate, and shrinking it
+    # would stop it matching the study it is cited from.
     SHRINKAGE = 0.53
     for feat in model_payload["coefficients"]:
         model_payload["coefficients"][feat] = round(model_payload["coefficients"][feat] * SHRINKAGE, 4)
 
-    print(f"\n6. Applying global shrinkage factor ({SHRINKAGE}) to the six fitted/pinned coefficients:")
+    print(f"\n6. Applying global shrinkage factor ({SHRINKAGE}) to all coefficients:")
     print(json.dumps(model_payload["coefficients"], indent=2))
 
     # Literature air term (not fitted, not shrunk): risk rises by ln(RR) per 10 ug/m3 of PM2.5 above the reference level
@@ -149,19 +141,22 @@ def main():
     }
     print(f"\n6b. Air term from literature: RR {AIR_RR_PER_10UG} per 10 ug/m3 PM2.5 above {AIR_REFERENCE_PM25} ug/m3 (ln = {model_payload['air']['pm25_log_rr_per_10ug']})")
 
-    # Evaluate the model that is actually shipped (same test rows, final intercept and coefficients)
-    shipped_logit = model_payload["intercept"] + X_test @ np.array([model_payload["coefficients"][f] for f in feature_cols])
+    # Evaluate the model that is actually shipped (same test rows, final intercept and coefficients, air at reference).
+    X_shipped_test = df.loc[idx_test, shipped_feature_cols].values
+    shipped_coefs = np.array([model_payload["coefficients"][f] for f in shipped_feature_cols])
+    shipped_logit = model_payload["intercept"] + X_shipped_test @ shipped_coefs
     shipped_preds = 1.0 / (1.0 + np.exp(-shipped_logit))
     shipped_auc = roc_auc_score(y_test, shipped_preds)
     shipped_brier = brier_score_loss(y_test, shipped_preds)
     print(f"\n7. Shipped model on the same held-out rows (air at the reference level, so the air term adds nothing): ROC-AUC = {shipped_auc:.3f}, Brier Loss = {shipped_brier:.4f}")
-    # Same evaluation using only the 4 terms that come from real patient rows
-    real_terms = ["age_over_40", "heart", "hypertension", "smoke"]
-    real_idx = [feature_cols.index(f) for f in real_terms]
-    real_coefs = np.array([model_payload["coefficients"][f] for f in real_terms])
-    real_preds = 1.0 / (1.0 + np.exp(-(model_payload["intercept"] + X_test[:, real_idx] @ real_coefs)))
-    real_auc = roc_auc_score(y_test, real_preds)
-    print(f"   Using only the 4 patient-data terms (age, heart disease, hypertension, smoking): ROC-AUC = {real_auc:.3f}")
+
+    # Same evaluation using only patient terms (no family history)
+    patient_terms = ["age_over_40", "heart", "hypertension", "smoke_current", "smoke_former"]
+    X_patient_test = df.loc[idx_test, patient_terms].values
+    patient_coefs = np.array([model_payload["coefficients"][f] for f in patient_terms])
+    patient_preds = 1.0 / (1.0 + np.exp(-(model_payload["intercept"] + X_patient_test @ patient_coefs)))
+    patient_auc = roc_auc_score(y_test, patient_preds)
+    print(f"   Using only the 5 patient-data terms (age, heart disease, hypertension, smoke_current, smoke_former): ROC-AUC = {patient_auc:.3f}")
     print("   The family-history terms are simulated independently of the outcome, so they can only lower these metrics.")
     print(f"   Mean predicted risk = {shipped_preds.mean():.1%} vs observed 'stroke' rate in the test rows = {y_test.mean():.1%}.")
     print("   These are not directly comparable: the dataset label is 'has had a stroke', while the intercept is a hand-set short-term baseline.")
@@ -173,16 +168,15 @@ def main():
         "literature_overrides_before_shrinkage": {k: round(v, 4) for k, v in literature_overrides.items()},
         "held_out_fitted_model": {"roc_auc": round(float(auc), 3), "brier": round(float(brier), 4)},
         "held_out_shipped_model": {"roc_auc": round(float(shipped_auc), 3), "brier": round(float(shipped_brier), 4)},
-        "held_out_shipped_model_patient_terms_only": {"roc_auc": round(float(real_auc), 3)},
+        "held_out_shipped_model_patient_terms_only": {"roc_auc": round(float(patient_auc), 3)},
         "air_term": "literature, not fitted and not shrunk (see 'air')",
-        "note": "Prototype weights: family history is simulated and pinned to literature; the air term is from a published meta-analysis; intercept is hand-set; not clinically validated.",
+        "note": "Prototype weights: smoking (current/former) and family history are pinned to literature; the air term is from a published meta-analysis; intercept is hand-set; not clinically validated.",
     }
 
     with open(OUTPUT_JSON, "w", encoding="utf-8") as f:
         json.dump(model_payload, f, indent=4)
 
-    print(f"\n[SUCCESS] Exported matching model weights to '{OUTPUT_JSON}'")
-    # final output
+    print(f"\n[SUCCESS] Exported model weights to '{OUTPUT_JSON}'")
 
 
 if __name__ == "__main__":
