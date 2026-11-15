@@ -1,14 +1,33 @@
 # Pionair: Personalized Air Quality Communication Tool
 ## What's Pionair?
 Pionair integrates live air pollution data into daily life through an app, care circle, and portable personalized device, making air quality information more accessible to vulnerable populations.
-## File Directory:  
-- The main branch (outside any folders) includes...   
-The stroke dataset CSV (from Kaggle) is used by `testing_datasets.py`. `air_quality_health_impact_data.csv` is kept in the repo for reference but is no longer used (see Datasets).   
-`testing_datasets.py` creates weights utilizing the CSV that is outputted as a file, `trained_model.json`. These weights are used as a basis of logistic regression in `app.py`.    
-`app.py` is the interactive web app.    
-NYC Open Data context (display only, does not change the risk score): `export.csv` is the NYC Open Data "Air Quality" export, `preprocess_nyc_data.py` turns it into the small `nyc_baseline.json`, `nyc_context.py` looks up a user's borough/neighborhood in it, and `verify_nyc_data.py` checks the data, the location lookup, and the model against it. For finding the user's ZIP/borough without a network call, `ZIP_Code_Tabulation_Areas_20261108.csv` (NYC ZIP boundaries) is turned into `nyc_zip_lookup.json` by `preprocess_nyc_zips.py`.    
-- `initial trials` folder: includes all code that was created during the duration of the hackathon that was updated throughout the 25 hours. **The final results are in the main folder, initial trials is old code**    
-- `hardware integration` folder: folder that contains a `.java` file that is a demonstration (**not tested during the duration of this hackathon**) for what we intend our product to be. **This is solely for showing the potential of our product + how easy and cheap it can be for SCALE.**
+## File Directory
+
+**Top-level files (outside any folder):**
+
+- **`README.md`** — this file.
+- **`app.py`** — the interactive web app (Python `http.server` backend + HTML/CSS/JS frontend).
+- **`trained_model.json`** — logistic regression weights loaded by `app.py` at startup.
+- **`testing_datasets.py`** — training script that produces `trained_model.json` from the Kaggle stroke dataset plus literature anchors.
+- **`healthcare-dataset-stroke-data.csv`** — the Kaggle Stroke Prediction Dataset by fedesoriano, used by `testing_datasets.py` to fit the three patient terms.
+- **`nyc_context.py`** — resolves a user's location to their NYC borough and loads the NYC Open Data context card; also handles the neighborhood-average fallback when no live sensor is available.
+- **`nyc_baseline.json`** — preprocessed NYC Open Data (borough-level annual PM2.5 and modeled CV hospitalization burden), loaded by `app.py` and `nyc_context.py`.
+- **`nyc_zip_lookup.json`** — preprocessed ZIP boundary lookup for 221 NYC ZCTAs, used by `nyc_context.py` to resolve a typed ZIP to a borough without a network call.
+- **`preprocess_nyc_data.py`** — turns `export.csv` into `nyc_baseline.json`.
+- **`preprocess_nyc_zips.py`** — turns `ZIP_Code_Tabulation_Areas_20261108.csv` into `nyc_zip_lookup.json`.
+- **`export.csv`** — raw NYC Open Data "Air Quality" dataset (c3uy-2p5r). Input to `preprocess_nyc_data.py`.
+- **`ZIP_Code_Tabulation_Areas_20261108.csv`** — raw NYC ZIP boundary polygons from NYC Open Data. Input to `preprocess_nyc_zips.py`.
+- **`verify_nyc_data.py`** — reproducible verification suite that runs 25 automated checks over the model, the NYC data, and the policy layer.
+- **`nyc_verification_report.json`** — most recent output of `verify_nyc_data.py` (25 passed, 1 warning, 0 failed).
+- **`air_quality_health_impact_data.csv`** — Kaggle Air Quality and Health Impact dataset. **No longer used** (see Datasets below); kept for reference only.
+- **`final-zip.zip`** — archived zip of the final submission files, kept as a snapshot for grading and reproducibility.
+
+**Folders:**
+
+- **`continued work`** — work on PionAir done after the hackathon submission (model refinements, NYC Open Data integration, testing framework, paper drafts).
+- **`hackathon-final-submission`** — the exact snapshot of the project submitted at the end of the hackathon.
+- **`hardware integration`** — a `.java` file demonstrating the intended LED-based hardware notification. **Not tested during the hackathon**; included to show the proposed scalable physical companion.
+- **`initial trials`** — all iterations of the code produced during the 25-hour hackathon. **The final results live in the top-level files; this folder is older working code.**
 ## How to Run It:  
 1. Make sure you have the required packages installed: Python, Numpy, Pandas, SKLearn, math, etc. (`python-dotenv` is optional, for a `.env` file with your API keys)
 2. Update the API keys for Purple Air and OpenWeather to your own.
