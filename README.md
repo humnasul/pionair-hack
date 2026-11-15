@@ -27,8 +27,7 @@ https://www.figma.com/proto/tnyfL6ssnZGn7j6YS148RZ/Traffic-Air?node-id=87-392&t=
 ## How it works
 
 Pionair is two independent pieces that share one file:
-
-​```
+```
         Patient data (CSV)
                 │
                 ▼
@@ -47,7 +46,7 @@ Pionair is two independent pieces that share one file:
     + health inputs, calls PurpleAir /
     OpenWeatherMap / Nominatim, computes and
     serves a risk score in the browser)
-​```
+```
 ## Datasets
 **The model learns from existing published population-level evidence, not from the user's personal health data**
 ### 1. Stroke Prediction Dataset (`healthcare-dataset-stroke-data.csv`)
@@ -101,10 +100,9 @@ The pipeline then does four things beyond a plain `model.fit()`:
 4. **Adds a literature air term that is not fitted and not shrunk:** risk rises by the published relative risk of **1.011 per 10 µg/m³ of PM2.5** above a reference level of 5 µg/m³ (about the cleanest NYC neighborhood average); air at or below the reference adds nothing. Source: Shah et al., *BMJ* 2015;350:h1295 — short-term PM2.5 exposure and stroke hospital admission or mortality (95% CI 1.011 to 1.012). The studies it pooled had typical PM2.5 of roughly 6 to 34 µg/m³ and high heterogeneity (I² = 86%), so effects at much higher PM2.5 (for example wildfire smoke) are extrapolated.
 
 The result — an intercept, 7 coefficients, and an `air` block — is written to `trained_model.json`. `app.py` loads that file once at startup and evaluates it live for each request as:
-
-​```
+```
 probability = sigmoid(intercept + Σ (coefficient_i × feature_i) + ln(1.011)/10 × max(0, PM2.5 − 5))
-​```
+```
 
 That probability is then bucketed into 5 levels (green to red) with the thresholds defined in `app.py`.
 
