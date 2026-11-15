@@ -28,24 +28,24 @@ https://www.figma.com/proto/tnyfL6ssnZGn7j6YS148RZ/Traffic-Air?node-id=87-392&t=
 
 Pionair is two independent pieces that share one file:
 ```
-        Patient data (CSV)
-                │
-                ▼
-        testing_datasets.py
-   (fits 3 patient terms from data,
-    pins smoking and family history to literature,
-    adds a literature PM2.5 air term,
-    saves the weights)
-                     │
-                     ▼
-            trained_model.json
-                     │
-                     ▼
-                  app.py
-   (loads the weights, takes a live location
-    + health inputs, calls PurpleAir /
-    OpenWeatherMap / Nominatim, computes and
-    serves a risk score in the browser)
+Offline (once):
+  healthcare-dataset-stroke-data.csv ──► testing_datasets.py     ──► trained_model.json
+  export.csv (NYC Open Data)         ──► preprocess_nyc_data.py  ──► nyc_baseline.json
+  ZIP_Code_Tabulation_Areas.csv      ──► preprocess_nyc_zips.py  ──► nyc_zip_lookup.json
+
+Live (every request):
+  user form + GPS/address
+           │
+           ▼
+         app.py  (loads the three JSON files above)
+           │
+           ├─► Nominatim         (typed address  → coordinates)
+           ├─► nyc_context.py    (coordinates    → borough, locally)
+           ├─► PurpleAir API     (nearest sensor → PM2.5 → AQI)
+           └─► OpenWeatherMap    (ozone, NO₂ for display tiles)
+           │
+           ▼
+  caution level + advisory + source-tagged tiles in the browser
 ```
 ## Datasets
 **The model learns from existing published population-level evidence, not from the user's personal health data**
